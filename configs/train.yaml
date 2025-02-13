@@ -1,0 +1,20 @@
+input_type: "image"
+dataset_name: ""
+model:
+  encoder: 'resnet18'
+  optimizer:
+    name: AdamW
+    lr: 0.0003
+    weight_decay: 3e-4
+  freeze_base: True
+
+dataset:
+  root_path: "./data/TESS"
+  split_ratios: [0.7, 0.2, 0.1]
+
+num_classes: 7
+batch_size: 32
+max_epochs: 20
+min_epochs: 10
+output_dir: outputs
+seed: 42
