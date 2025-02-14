@@ -48,8 +48,6 @@ def main(cfg: DictConfig) -> None:
     except Exception:
         raise ValueError(f"Unsupported input_type: {cfg.input_type}")
 
-    # Initialize the model
-        # Use the timm_backbones encoder
     from encoders.encoders import timm_backbones
     train_loader = DataLoader(train_dataset, sampler=RandomSampler(train_dataset), batch_size=cfg.batch_size, num_workers=min(os.cpu_count(), 7), collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, sampler=SequentialSampler(val_dataset), batch_size=cfg.batch_size, num_workers=min(os.cpu_count(), 7), collate_fn=collate_fn)

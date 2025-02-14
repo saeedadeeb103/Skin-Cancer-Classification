@@ -7,28 +7,6 @@ import torch
 
 
 class timm_backbones(pl.LightningModule):
-    """
-    PyTorch Lightning model for image classification using a ResNet-18 architecture.
-
-    This model uses a pre-trained ResNet-18 model and fine-tunes it for a specific number of classes.
-
-    Args:
-        num_classes (int, optional): The number of classes in the dataset. Defaults to 2.
-        optimizer_cfg (DictConfig, optional): A Hydra configuration object for the optimizer.
-
-    Methods:
-        forward(x): Computes the forward pass of the model.
-        configure_optimizers(): Configures the optimizer for the model.
-        training_step(batch, batch_idx): Performs a training step on the model.
-        validation_step(batch, batch_idx): Performs a validation step on the model.
-        on_validation_epoch_end(): Called at the end of each validation epoch.
-        test_step(batch, batch_idx): Performs a test step on the model.
-
-    Example:
-        model = ResNet18(num_classes=2, optimizer_cfg=cfg.model.optimizer)
-        trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-        trainer.test(model, dataloaders=test_dataloader)
-    """
     def __init__(self, encoder='resnet18', num_classes=2, optimizer_cfg=None, l1_lambda=0.0):
         super().__init__()
 
@@ -71,6 +49,8 @@ class timm_backbones(pl.LightningModule):
                 self.optimizer = optim.Adam(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
             elif optimizer_name == 'SGD':
                 self.optimizer = optim.SGD(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
+            elif optimizer_name == 'Adamw':
+                self.optimizer = optim.AdamW(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
             else:
                 raise ValueError(f"Unsupported optimizer: {optimizer_name}")
         else:
@@ -81,7 +61,7 @@ class timm_backbones(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = self.optimizer
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.2, patience=10, min_lr=5e-5)
         return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "val_loss"}
 
     def training_step(self, batch, batch_idx):
@@ -93,8 +73,8 @@ class timm_backbones(pl.LightningModule):
         loss = torch.nn.functional.cross_entropy(logits, y)
 
         # Add L1 regularization
-        l1_norm = sum(param.abs().sum() for param in self.parameters())
-        loss += self.l1_lambda * l1_norm
+        # l1_norm = sum(param.abs().sum() for param in self.parameters())
+        # loss += self.l1_lambda * l1_norm
 
         self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
 

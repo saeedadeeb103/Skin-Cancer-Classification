@@ -3,16 +3,16 @@ dataset_name: ""
 model:
   encoder: 'resnet18'
   optimizer:
-    name: AdamW
+    name: Adam
     lr: 0.0003
     weight_decay: 3e-4
   freeze_base: True
 
 dataset:
-  root_path: "./data/TESS"
+  root_path: ""
   split_ratios: [0.7, 0.2, 0.1]
 
-num_classes: 7
+num_classes: 2
 batch_size: 32
 max_epochs: 20
 min_epochs: 10
