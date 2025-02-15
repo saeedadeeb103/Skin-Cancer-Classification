@@ -27,111 +27,279 @@ from tensorboard.backend.event_processing.event_accumulator import ScalarEvent
 import os
 import datetime
 import numpy as np
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 import matplotlib.pyplot as plt
 import torch
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
+from reportlab.lib.units import inch
+from tensorboard.backend.event_processing.event_processing import EventAccumulator
+from hydra.core.hydra_config import HydraConfig
 
-def generate_report(log_dir, trainer, model, test_loader, output_dir):
-    """Generate comprehensive PDF report using TensorBoard metrics"""
+def generate_report(log_dir, model, test_loader, output_dir, cfg):
+    """Generate comprehensive training report with all essential elements"""
+    # Create output directory if needed
     os.makedirs(output_dir, exist_ok=True)
     
-    # Load TensorBoard event data
+    # Load metrics from TensorBoard
+    metrics = load_tensorboard_metrics(log_dir)
+    
+    # Create document structure
+    doc = SimpleDocTemplate(
+        os.path.join(output_dir, "training_report.pdf"),
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=72
+    )
+    
+    # Create story elements
+    story = []
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'Title',
+        parent=styles['Title'],
+        fontSize=18,
+        spaceAfter=14,
+        textColor=colors.HexColor('#2B3A67')
+    )
+    
+    # Add header
+    story.append(Paragraph("Training Report Summary", title_style))
+    story.append(Spacer(1, 12))
+    
+    # Add metadata section
+    story += create_metadata_section(model, cfg, styles)
+    story.append(Spacer(1, 24))
+    
+    # Add hyperparameters table
+    story += create_hyperparameters_table(cfg, styles)
+    story.append(PageBreak())
+    
+    # Add training curves
+    story += create_training_curves_section(metrics, output_dir, styles)
+    story.append(PageBreak())
+    
+    # Add sample predictions
+    story += create_predictions_section(model, test_loader, output_dir, styles)
+    
+    # Build final PDF
+    doc.build(story)
+    cleanup_temp_files(output_dir)
+    return os.path.join(output_dir, "training_report.pdf")
+
+def load_tensorboard_metrics(log_dir):
+    """Load and parse TensorBoard event files"""
     event_acc = EventAccumulator(log_dir)
     event_acc.Reload()
     
-    # Extract metrics from TensorBoard logs
-    metrics = defaultdict(list)
+    metrics = {}
     for tag in event_acc.Tags()['scalars']:
         events = event_acc.Scalars(tag)
         metrics[tag] = [e.value for e in events]
+    return metrics
 
-    # Create visualizations
-    plt.style.use('seaborn-v0_8')
-    loss_fig = create_loss_plot(metrics)
-    metrics_fig = create_metrics_plot(metrics)
-    sample_images = generate_sample_predictions(model, test_loader, output_dir)
-
-    # Generate PDF report
-    pdf_path = create_pdf_document(
-        output_dir=output_dir,
-        metrics=metrics,
-        loss_fig=loss_fig,
-        metrics_fig=metrics_fig,
-        sample_images=sample_images,
-        model=model
+def create_metadata_section(model, cfg, styles):
+    """Create model metadata section"""
+    elements = []
+    meta_style = ParagraphStyle(
+        'Meta',
+        parent=styles['BodyText'],
+        fontSize=10,
+        textColor=colors.HexColor('#4A4A4A')
     )
     
-    cleanup_temp_files(output_dir, sample_images)
-    return pdf_path
-
-def create_loss_plot(metrics):
-    """Create combined training/validation loss plot"""
-    fig, ax = plt.subplots(figsize=(10, 6))
-    has_data = False
+    metadata = [
+        f"<b>Report Date:</b> {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"<b>Model Architecture:</b> {model.__class__.__name__}",
+        f"<b>Training Duration:</b> {len(metrics.get('train_loss', []))} epochs",
+        f"<b>Best Validation Loss:</b> {min(metrics.get('val_loss', [0])):.4f}",
+        f"<b>Final Training Loss:</b> {metrics.get('train_loss', [0])[-1]:.4f}"
+    ]
     
-    # Plot training loss
+    for item in metadata:
+        elements.append(Paragraph(item, meta_style))
+        elements.append(Spacer(1, 4))
+    
+    return elements
+
+def create_hyperparameters_table(cfg, styles):
+    """Create formatted hyperparameters table"""
+    elements = []
+    header_style = ParagraphStyle(
+        'TableHeader',
+        parent=styles['BodyText'],
+        fontSize=12,
+        textColor=colors.HexColor('#FFFFFF'),
+        alignment=1
+    )
+    
+    # Flatten Hydra config
+    params = []
+    for section in ['model', 'dataset', 'training']:
+        if hasattr(cfg, section):
+            params.extend([
+                (f"<b>{key}</b>", str(value))
+                for key, value in getattr(cfg, section).items()
+            ])
+    
+    # Create table data
+    table_data = [
+        [Paragraph('Hyperparameter', header_style), 
+         Paragraph('Value', header_style)]
+    ] + params
+    
+    # Create table
+    table = Table(table_data, colWidths=[2.5*inch, 3*inch])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#3A5A40')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('BOTTOMPADDING', (0,0), (-1,0), 12),
+        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9FA')),
+        ('GRID', (0,0), (-1,-1), 1, colors.HexColor('#DEE2E6')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+    ]))
+    
+    elements.append(Paragraph("<b>Training Configuration</b>", styles['Heading2']))
+    elements.append(Spacer(1, 12))
+    elements.append(table)
+    return elements
+
+def create_training_curves_section(metrics, output_dir, styles):
+    """Create section with training curves"""
+    elements = []
+    
+    # Create and save plots
+    loss_path = os.path.join(output_dir, 'loss_curves.png')
+    create_combined_loss_plot(metrics).savefig(loss_path, bbox_inches='tight')
+    
+    metrics_path = os.path.join(output_dir, 'validation_metrics.png')
+    create_metrics_plot(metrics).savefig(metrics_path, bbox_inches='tight')
+    
+    # Add to report
+    elements.append(Paragraph("<b>Training Curves</b>", styles['Heading2']))
+    elements.append(Spacer(1, 12))
+    
+    # Create two-column layout
+    img_table = Table([
+        [Image(loss_path, width=3.5*inch, height=2.5*inch),
+         Image(metrics_path, width=3.5*inch, height=2.5*inch)]
+    ], colWidths=[4*inch, 4*inch])
+    
+    elements.append(img_table)
+    elements.append(Spacer(1, 24))
+    
+    # Add metric explanations
+    elements.append(Paragraph("<i>Training Metrics Legend:</i>", styles['Italic']))
+    elements.append(Paragraph(
+        "• <b>Loss:</b> CrossEntropyLoss with label smoothing", 
+        styles['BodyText']
+    ))
+    elements.append(Paragraph(
+        "• <b>Validation Metrics:</b> Calculated on full validation set after each epoch", 
+        styles['BodyText']
+    ))
+    
+    return elements
+
+def create_predictions_section(model, test_loader, output_dir, styles):
+    """Create section with sample predictions"""
+    elements = []
+    elements.append(Paragraph("<b>Sample Predictions</b>", styles['Heading2']))
+    elements.append(Spacer(1, 12))
+    
+    # Generate prediction images
+    sample_images = generate_organized_predictions(model, test_loader, output_dir)
+    
+    # Create image grid (3 per row)
+    rows = []
+    current_row = []
+    for img_path in sample_images:
+        current_row.append(Image(img_path, width=1.8*inch, height=1.8*inch))
+        if len(current_row) == 3:
+            rows.append(current_row)
+            current_row = []
+    if current_row:
+        rows.append(current_row)
+    
+    # Create prediction table
+    pred_table = Table(rows, colWidths=[2*inch]*3)
+    pred_table.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 8),
+    ]))
+    
+    elements.append(pred_table)
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(
+        "<i>Note: Green labels indicate correct predictions, red indicates errors</i>",
+        styles['Italic']
+    ))
+    
+    return elements
+
+def create_combined_loss_plot(metrics):
+    """Create professional loss curves plot"""
+    plt.style.use('seaborn-v0_8')
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
     if 'train_loss' in metrics:
         ax.plot(metrics['train_loss'], 
                 label='Training Loss', 
-                color='navy', 
                 linewidth=2,
-                alpha=0.8)
-        has_data = True
-    
-    # Plot validation loss
+                color='#2B3A67',
+                alpha=0.9)
+        
     if 'val_loss' in metrics:
         ax.plot(metrics['val_loss'], 
                 label='Validation Loss', 
-                color='darkorange', 
                 linewidth=2,
+                color='#7EBDC2',
                 linestyle='--')
-        has_data = True
-    
-    if has_data:
-        ax.set_title('Training and Validation Loss', fontsize=14, pad=20)
-        ax.set_xlabel('Epoch', fontsize=12)
-        ax.set_ylabel('Loss', fontsize=12)
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.legend()
-        plt.tight_layout()
-        return fig
-    return None
+        
+    ax.set_title('Training and Validation Loss', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Loss', fontsize=12)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
+    return fig
 
 def create_metrics_plot(metrics):
     """Create validation metrics plot"""
+    plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
-    has_data = False
     
-    metric_colors = {
-        'val_f1': 'green',
-        'val_precision': 'blue',
-        'val_recall': 'red'
+    metric_styles = {
+        'val_f1': {'color': '#3A5A40', 'label': 'F1 Score'},
+        'val_precision': {'color': '#7EBDC2', 'label': 'Precision'},
+        'val_recall': {'color': '#FF6B35', 'label': 'Recall'}
     }
     
-    for metric, color in metric_colors.items():
+    for metric, style in metric_styles.items():
         if metric in metrics:
             ax.plot(metrics[metric], 
-                    label=metric.replace('val_', '').title(), 
-                    color=color,
+                    label=style['label'], 
                     linewidth=2,
-                    alpha=0.8)
-            has_data = True
-    
-    if has_data:
-        ax.set_title('Validation Metrics', fontsize=14, pad=20)
-        ax.set_xlabel('Epoch', fontsize=12)
-        ax.set_ylabel('Score', fontsize=12)
-        ax.set_ylim(0, 1)
-        ax.grid(True, linestyle='--', alpha=0.7)
-        ax.legend()
-        plt.tight_layout()
-        return fig
-    return None
+                    color=style['color'])
+            
+    ax.set_title('Validation Metrics', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Score', fontsize=12)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
+    return fig
 
-def generate_sample_predictions(model, test_loader, output_dir, num_samples=6):
-    """Generate sample prediction visualizations"""
+def generate_organized_predictions(model, test_loader, output_dir, num_samples=9):
+    """Generate organized prediction visualizations"""
     model.eval()
     samples = []
     denormalize = transforms.Normalize(
@@ -154,93 +322,27 @@ def generate_sample_predictions(model, test_loader, output_dir, num_samples=6):
                 img = denormalize(x[idx]).cpu().numpy().transpose(1, 2, 0)
                 img = np.clip(img, 0, 1)
                 
-                fig, ax = plt.subplots(figsize=(4, 4))
+                fig, ax = plt.subplots(figsize=(3, 3))
                 ax.imshow(img)
-                ax.set_title(f'True: {y[idx].item()}\nPred: {preds[idx].item()}',
-                           fontsize=10, 
-                           color='green' if y[idx] == preds[idx] else 'red')
+                ax.set_title(
+                    f'True: {y[idx].item()}\nPred: {preds[idx].item()}',
+                    fontsize=9,
+                    color='#3A5A40' if y[idx] == preds[idx] else '#FF6B35'
+                )
                 ax.axis('off')
+                plt.subplots_adjust(left=0.05, right=0.95, top=0.85, bottom=0.05)
                 
-                img_path = os.path.join(output_dir, f'sample_{len(samples)}.png')
-                plt.savefig(img_path, bbox_inches='tight', dpi=120)
+                img_path = os.path.join(output_dir, f'pred_{len(samples)}.png')
+                plt.savefig(img_path, dpi=120)
                 plt.close()
                 samples.append(img_path)
     return samples
 
-def create_pdf_document(output_dir, metrics, loss_fig, metrics_fig, sample_images, model):
-    """Create PDF report document"""
-    pdf_path = os.path.join(output_dir, 'training_report.pdf')
-    c = canvas.Canvas(pdf_path, pagesize=letter)
-    width, height = letter
-    
-    # Header Section
-    c.setFont('Helvetica-Bold', 16)
-    c.drawString(72, height - 72, "Model Training Report")
-    c.setFont('Helvetica', 10)
-    c.drawString(72, height - 92, f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    
-    # Model Metadata
-    metadata_y = height - 130
-    c.setFont('Helvetica-Bold', 12)
-    c.drawString(72, metadata_y, "Training Summary:")
-    c.setFont('Helvetica', 10)
-    metadata_items = [
-        f"Model Architecture: {model.__class__.__name__}",
-        f"Total Epochs Trained: {len(metrics.get('train_loss', []))}",
-        f"Best Validation Loss: {min(metrics.get('val_loss', [0])):.4f}",
-        f"Final Training Loss: {metrics.get('train_loss', [0])[-1]:.4f}"
-    ]
-    for item in metadata_items:
-        metadata_y -= 20
-        c.drawString(72, metadata_y, item)
-    
-    # Visualizations
-    current_y = metadata_y - 40
-    
-    # Loss Plot
-    if loss_fig:
-        loss_path = os.path.join(output_dir, 'loss_plot.png')
-        loss_fig.savefig(loss_path, bbox_inches='tight')
-        c.drawImage(loss_path, 50, current_y - 250, width=500, height=250)
-        current_y -= 300
-    
-    # Metrics Plot
-    if metrics_fig:
-        metrics_path = os.path.join(output_dir, 'metrics_plot.png')
-        metrics_fig.savefig(metrics_path, bbox_inches='tight')
-        c.drawImage(metrics_path, 50, current_y - 250, width=500, height=250)
-        current_y -= 300
-    
-    # Sample Predictions
-    if sample_images:
-        c.setFont('Helvetica-Bold', 12)
-        c.drawString(72, current_y - 20, "Sample Predictions:")
-        img_y = current_y - 120
-        x_offset = 72
-        
-        for img_path in sample_images:
-            c.drawImage(img_path, x_offset, img_y, width=150, height=150)
-            x_offset += 160
-            if x_offset > 400:
-                x_offset = 72
-                img_y -= 160
-                if img_y < 100:
-                    c.showPage()
-                    img_y = height - 100
-    
-    # Footer
-    c.setFont('Helvetica-Oblique', 8)
-    c.drawCentredString(width/2, 40, "Confidential - Generated by Model Training Framework")
-    
-    c.save()
-    return pdf_path
-
-def cleanup_temp_files(output_dir, sample_images):
-    """Clean up temporary visualization files"""
+def cleanup_temp_files(output_dir):
+    """Clean temporary visualization files"""
     for f in os.listdir(output_dir):
-        if f.startswith('sample_') or f.endswith('_plot.png'):
+        if f.startswith('pred_') or f.endswith(('_curves.png', '_metrics.png')):
             os.remove(os.path.join(output_dir, f))
-
             
 def set_seed(seed):
     torch.manual_seed(seed)
