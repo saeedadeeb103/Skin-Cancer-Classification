@@ -57,16 +57,9 @@ def generate_report(metrics, trainer, model, test_loader, output_dir):
     })
 
     # ========== Metrics Visualization ==========
-    def create_loss_plot():
+    def create_metric_plot():
         fig, ax = plt.subplots()
         metrics_added = False
-        
-        if 'train_loss' in metrics:
-            train_loss = metrics['train_loss']
-            if isinstance(train_loss, torch.Tensor):
-                train_loss = [train_loss.item()]
-            ax.plot(train_loss, label='Train Loss', linewidth=2, color='navy')
-            metrics_added = True
         
         # Plot validation metrics
         for metric in ['val_f1', 'val_recall', 'val_precision']:
@@ -91,12 +84,14 @@ def generate_report(metrics, trainer, model, test_loader, output_dir):
         metrics_added = False
         
         if 'train_loss' in metrics:
-            train_loss = [float(x) for x in metrics['train_loss']]
+            train_loss = metrics['train_loss']
+            if isinstance(train_loss, torch.Tensor):
+                train_loss = [train_loss.item()]
             ax.plot(train_loss, label='Train Loss', linewidth=2, color='navy')
             metrics_added = True
             
         if 'val_loss' in metrics:
-            val_loss = [float(x) for x in metrics['val_loss']]
+            val_loss = metrics['val_loss'] if isinstance(metrics['val_loss'], list) else [metrics['val_loss']]
             ax.plot(val_loss, label='Validation Loss', linewidth=2, color='darkorange')
             metrics_added = True
             
