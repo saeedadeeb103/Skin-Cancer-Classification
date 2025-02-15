@@ -22,220 +22,226 @@ import os
 import datetime
 from collections import defaultdict
 
+from tensorboard.backend.event_processing.event_processing import EventAccumulator
+from tensorboard.backend.event_processing.event_accumulator import ScalarEvent
+import os
+import datetime
+import numpy as np
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
+import matplotlib.pyplot as plt
+import torch
 
-
-class MetricsTracker(pl.Callback):
-    def __init__(self):
-        super().__init__()
-        self.metrics = defaultdict(list)
-    
-    def on_train_epoch_end(self, trainer, pl_module):
-        metrics = trainer.logged_metrics
-        if 'train_loss' in metrics:
-            self.metrics['train_loss'].append(metrics['train_loss'].item())
-    
-    def on_validation_epoch_end(self, trainer, pl_module):
-        metrics = trainer.logged_metrics
-        for key in ['val_loss', 'val_f1', 'val_recall', 'val_precision']:
-            if key in metrics:
-                self.metrics[key].append(metrics[key].item())
-
-def generate_report(metrics, trainer, model, test_loader, output_dir):
-    # Create output directory if it doesn't exist
+def generate_report(log_dir, trainer, model, test_loader, output_dir):
+    """Generate comprehensive PDF report using TensorBoard metrics"""
     os.makedirs(output_dir, exist_ok=True)
     
-    # Set professional styling for plots
+    # Load TensorBoard event data
+    event_acc = EventAccumulator(log_dir)
+    event_acc.Reload()
+    
+    # Extract metrics from TensorBoard logs
+    metrics = defaultdict(list)
+    for tag in event_acc.Tags()['scalars']:
+        events = event_acc.Scalars(tag)
+        metrics[tag] = [e.value for e in events]
+
+    # Create visualizations
     plt.style.use('seaborn-v0_8')
-    plt.rcParams.update({
-        'font.size': 12,
-        'axes.titlesize': 14,
-        'axes.labelsize': 12,
-        'xtick.labelsize': 10,
-        'ytick.labelsize': 10,
-        'figure.figsize': (10, 6),
-        'figure.dpi': 100
-    })
+    loss_fig = create_loss_plot(metrics)
+    metrics_fig = create_metrics_plot(metrics)
+    sample_images = generate_sample_predictions(model, test_loader, output_dir)
 
-    # ========== Metrics Visualization ==========
-    def create_metric_plot():
-        fig, ax = plt.subplots()
-        metrics_added = False
-        
-        # Plot validation metrics
-        for metric in ['val_f1', 'val_recall', 'val_precision']:
-            if metric in metrics:
-                values = [float(x) for x in metrics[metric]]
-                ax.plot(values, label=metric.replace('val_', '').title(), linewidth=2)
-                metrics_added = True
-                
-        if metrics_added:
-            ax.set_xlabel('Epoch')
-            ax.set_ylabel('Score')
-            ax.set_title('Validation Metrics', fontweight='bold')
-            ax.grid(True, linestyle='--', alpha=0.7)
-            ax.legend(loc='best')
-            plt.tight_layout()
-            return fig
-        return None
+    # Generate PDF report
+    pdf_path = create_pdf_document(
+        output_dir=output_dir,
+        metrics=metrics,
+        loss_fig=loss_fig,
+        metrics_fig=metrics_fig,
+        sample_images=sample_images,
+        model=model
+    )
+    
+    cleanup_temp_files(output_dir, sample_images)
+    return pdf_path
 
-    # ========== Loss Visualization ==========
-    def create_loss_plot():
-        fig, ax = plt.subplots()
-        metrics_added = False
-        
-        if 'train_loss' in metrics:
-            train_loss = metrics['train_loss']
-            if isinstance(train_loss, torch.Tensor):
-                train_loss = [train_loss.item()]
-            ax.plot(train_loss, label='Train Loss', linewidth=2, color='navy')
-            metrics_added = True
+def create_loss_plot(metrics):
+    """Create combined training/validation loss plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    has_data = False
+    
+    # Plot training loss
+    if 'train_loss' in metrics:
+        ax.plot(metrics['train_loss'], 
+                label='Training Loss', 
+                color='navy', 
+                linewidth=2,
+                alpha=0.8)
+        has_data = True
+    
+    # Plot validation loss
+    if 'val_loss' in metrics:
+        ax.plot(metrics['val_loss'], 
+                label='Validation Loss', 
+                color='darkorange', 
+                linewidth=2,
+                linestyle='--')
+        has_data = True
+    
+    if has_data:
+        ax.set_title('Training and Validation Loss', fontsize=14, pad=20)
+        ax.set_xlabel('Epoch', fontsize=12)
+        ax.set_ylabel('Loss', fontsize=12)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.legend()
+        plt.tight_layout()
+        return fig
+    return None
+
+def create_metrics_plot(metrics):
+    """Create validation metrics plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    has_data = False
+    
+    metric_colors = {
+        'val_f1': 'green',
+        'val_precision': 'blue',
+        'val_recall': 'red'
+    }
+    
+    for metric, color in metric_colors.items():
+        if metric in metrics:
+            ax.plot(metrics[metric], 
+                    label=metric.replace('val_', '').title(), 
+                    color=color,
+                    linewidth=2,
+                    alpha=0.8)
+            has_data = True
+    
+    if has_data:
+        ax.set_title('Validation Metrics', fontsize=14, pad=20)
+        ax.set_xlabel('Epoch', fontsize=12)
+        ax.set_ylabel('Score', fontsize=12)
+        ax.set_ylim(0, 1)
+        ax.grid(True, linestyle='--', alpha=0.7)
+        ax.legend()
+        plt.tight_layout()
+        return fig
+    return None
+
+def generate_sample_predictions(model, test_loader, output_dir, num_samples=6):
+    """Generate sample prediction visualizations"""
+    model.eval()
+    samples = []
+    denormalize = transforms.Normalize(
+        mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
+        std=[1/0.229, 1/0.224, 1/0.225]
+    )
+
+    with torch.no_grad():
+        for batch_idx, (x, y) in enumerate(test_loader):
+            if len(samples) >= num_samples:
+                break
             
-        if 'val_loss' in metrics:
-            val_loss = metrics['val_loss'] if isinstance(metrics['val_loss'], list) else [metrics['val_loss']]
-            ax.plot(val_loss, label='Validation Loss', linewidth=2, color='darkorange')
-            metrics_added = True
+            logits = model(x)
+            preds = torch.argmax(logits, dim=1)
             
-        if metrics_added:
-            ax.set_xlabel('Epoch')
-            ax.set_ylabel('Loss')
-            ax.set_title('Training and Validation Loss', fontweight='bold')
-            ax.grid(True, linestyle='--', alpha=0.7)
-            ax.legend(loc='best')
-            plt.tight_layout()
-            return fig
-        return None
-
-    # ========== Sample Predictions ==========
-    def save_sample_predictions(num_samples=6):
-        model.eval()
-        samples = []
-        denormalize = transforms.Normalize(
-            mean=[-0.485/0.229, -0.456/0.224, -0.406/0.225],
-            std=[1/0.229, 1/0.224, 1/0.225]
-        )
-
-        with torch.no_grad():
-            for i, (x, y) in enumerate(test_loader):
-                if i >= 2:  # Take 2 batches
+            for idx in range(x.size(0)):
+                if len(samples) >= num_samples:
                     break
-                logits = model(x)
-                preds = torch.argmax(logits, dim=1)
                 
-                for j in range(x.size(0)):
-                    if len(samples) >= num_samples:
-                        break
-                        
-                    # Denormalize image
-                    img = denormalize(x[j]).cpu().numpy().transpose(1, 2, 0)
-                    img = np.clip(img, 0, 1)
-                    
-                    # Create plot
-                    fig, ax = plt.subplots(figsize=(4, 4))
-                    ax.imshow(img)
-                    ax.set_title(f'True: {y[j].item()}\nPred: {preds[j].item()}',
-                               fontsize=10, color='green' if y[j] == preds[j] else 'red')
-                    ax.axis('off')
-                    
-                    # Save to buffer
-                    img_path = os.path.join(output_dir, f'sample_{len(samples)}.png')
-                    plt.savefig(img_path, bbox_inches='tight', dpi=120)
-                    plt.close()
-                    samples.append(img_path)
-        return samples
-
-    # Generate visualizations
-    loss_plot = create_loss_plot()
-    metrics_plot = create_metric_plot()
-    sample_images = save_sample_predictions()
-
-    # ========== PDF Generation ==========
-    def create_pdf_report():
-        pdf_path = os.path.join(output_dir, 'training_report.pdf')
-        c = canvas.Canvas(pdf_path, pagesize=letter)
-        width, height = letter
-        
-        # Styles
-        title_style = {'fontName': 'Helvetica-Bold', 'fontSize': 16, 'textColor': (0.2, 0.2, 0.6)}
-        section_style = {'fontName': 'Helvetica-Bold', 'fontSize': 12, 'textColor': (0.3, 0.3, 0.3)}
-        footer_style = {'fontName': 'Helvetica-Oblique', 'fontSize': 8, 'textColor': (0.4, 0.4, 0.4)}
-        
-        # Header
-        c.setFont(title_style['fontName'], title_style['fontSize'])
-        c.setFillColorRGB(*title_style['textColor'])
-        c.drawString(72, height - 72, "Training Results Report")
-        
-        # Metadata
-        c.setFont(section_style['fontName'], 10)
-        c.setFillColorRGB(0.3, 0.3, 0.3)
-        metadata = [
-            f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            f"Model: {model.__class__.__name__}",
-            f"Epochs: {len(metrics.get('train_loss', []))}",
-            f"Best Val Loss: {min(metrics.get('val_loss', [np.inf])):.4f}"
-        ]
-        for i, text in enumerate(metadata):
-            c.drawString(72, height - 100 - (i*15), text)
-        
-        y_position = height - 180
-        
-        # Loss Plot
-        if loss_plot:
-            loss_path = os.path.join(output_dir, 'loss_plot.png')
-            loss_plot.savefig(loss_path, bbox_inches='tight')
-            c.setFont(section_style['fontName'], section_style['fontSize'])
-            c.drawString(72, y_position - 20, "Training Progress")
-            c.drawImage(loss_path, 72, y_position - 220, width=450, height=200)
-            y_position -= 250
-
-        # Metrics Plot
-        if metrics_plot:
-            metrics_path = os.path.join(output_dir, 'metrics_plot.png')
-            metrics_plot.savefig(metrics_path, bbox_inches='tight')
-            c.drawString(72, y_position - 20, "Validation Metrics")
-            c.drawImage(metrics_path, 72, y_position - 220, width=450, height=200)
-            y_position -= 250
-
-        # Sample Predictions
-        if sample_images:
-            c.setFont(section_style['fontName'], section_style['fontSize'])
-            c.drawString(72, y_position - 20, "Sample Predictions")
-            
-            x_offset = 72
-            y_offset = y_position - 100
-            img_size = 150
-            
-            for i, img_path in enumerate(sample_images):
-                if i > 0 and i % 3 == 0:
-                    x_offset = 72
-                    y_offset -= img_size + 30
-                    
-                c.drawImage(img_path, x_offset, y_offset, 
-                           width=img_size, height=img_size)
-                x_offset += img_size + 20
+                img = denormalize(x[idx]).cpu().numpy().transpose(1, 2, 0)
+                img = np.clip(img, 0, 1)
                 
-                if y_offset < 100:  # Prevent overflow
+                fig, ax = plt.subplots(figsize=(4, 4))
+                ax.imshow(img)
+                ax.set_title(f'True: {y[idx].item()}\nPred: {preds[idx].item()}',
+                           fontsize=10, 
+                           color='green' if y[idx] == preds[idx] else 'red')
+                ax.axis('off')
+                
+                img_path = os.path.join(output_dir, f'sample_{len(samples)}.png')
+                plt.savefig(img_path, bbox_inches='tight', dpi=120)
+                plt.close()
+                samples.append(img_path)
+    return samples
+
+def create_pdf_document(output_dir, metrics, loss_fig, metrics_fig, sample_images, model):
+    """Create PDF report document"""
+    pdf_path = os.path.join(output_dir, 'training_report.pdf')
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    width, height = letter
+    
+    # Header Section
+    c.setFont('Helvetica-Bold', 16)
+    c.drawString(72, height - 72, "Model Training Report")
+    c.setFont('Helvetica', 10)
+    c.drawString(72, height - 92, f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    
+    # Model Metadata
+    metadata_y = height - 130
+    c.setFont('Helvetica-Bold', 12)
+    c.drawString(72, metadata_y, "Training Summary:")
+    c.setFont('Helvetica', 10)
+    metadata_items = [
+        f"Model Architecture: {model.__class__.__name__}",
+        f"Total Epochs Trained: {len(metrics.get('train_loss', []))}",
+        f"Best Validation Loss: {min(metrics.get('val_loss', [0])):.4f}",
+        f"Final Training Loss: {metrics.get('train_loss', [0])[-1]:.4f}"
+    ]
+    for item in metadata_items:
+        metadata_y -= 20
+        c.drawString(72, metadata_y, item)
+    
+    # Visualizations
+    current_y = metadata_y - 40
+    
+    # Loss Plot
+    if loss_fig:
+        loss_path = os.path.join(output_dir, 'loss_plot.png')
+        loss_fig.savefig(loss_path, bbox_inches='tight')
+        c.drawImage(loss_path, 50, current_y - 250, width=500, height=250)
+        current_y -= 300
+    
+    # Metrics Plot
+    if metrics_fig:
+        metrics_path = os.path.join(output_dir, 'metrics_plot.png')
+        metrics_fig.savefig(metrics_path, bbox_inches='tight')
+        c.drawImage(metrics_path, 50, current_y - 250, width=500, height=250)
+        current_y -= 300
+    
+    # Sample Predictions
+    if sample_images:
+        c.setFont('Helvetica-Bold', 12)
+        c.drawString(72, current_y - 20, "Sample Predictions:")
+        img_y = current_y - 120
+        x_offset = 72
+        
+        for img_path in sample_images:
+            c.drawImage(img_path, x_offset, img_y, width=150, height=150)
+            x_offset += 160
+            if x_offset > 400:
+                x_offset = 72
+                img_y -= 160
+                if img_y < 100:
                     c.showPage()
-                    y_offset = height - 100
+                    img_y = height - 100
+    
+    # Footer
+    c.setFont('Helvetica-Oblique', 8)
+    c.drawCentredString(width/2, 40, "Confidential - Generated by Model Training Framework")
+    
+    c.save()
+    return pdf_path
 
-        # Footer
-        c.setFont(footer_style['fontName'], footer_style['fontSize'])
-        c.setFillColorRGB(*footer_style['textColor'])
-        c.drawCentredString(width/2, 40, 
-                           "Generated by Model Training Framework - Confidential")
-        
-        c.save()
-        return pdf_path
-
-    # Generate the PDF
-    pdf_path = create_pdf_report()
-    print(f"\n✅ Training report generated at: {pdf_path}")
-
-    # Cleanup temporary files
+def cleanup_temp_files(output_dir, sample_images):
+    """Clean up temporary visualization files"""
     for f in os.listdir(output_dir):
         if f.startswith('sample_') or f.endswith('_plot.png'):
             os.remove(os.path.join(output_dir, f))
 
-
+            
 def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -294,7 +300,7 @@ def main(cfg: DictConfig) -> None:
 
     # Define logger
     logger = TensorBoardLogger(save_dir="logs", name="outputloggs")
-    metrics_tracker = MetricsTracker()
+    # metrics_tracker = MetricsTracker()
 
     # Initialize the trainer
     trainer = pl.Trainer(
@@ -303,9 +309,10 @@ def main(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         precision=16 if torch.cuda.is_available() else 32,  # Mixed precision training
         logger=logger,
-        callbacks=[checkpoint_callback, early_stop_callback, metrics_tracker],
+        callbacks=[checkpoint_callback, early_stop_callback],
         accumulate_grad_batches=2  # Gradient accumulation for memory efficiency
     )
+    log_dir = logger.log_dir
 
     # Train the model
     trainer.fit(model, train_loader, val_loader)
@@ -316,7 +323,13 @@ def main(cfg: DictConfig) -> None:
     
     
     # generate pdf report
-    generate_report(metrics_tracker.metrics, trainer, model, test_loader, hydra_cfg.runtime.output_dir)
+    generate_report(
+        log_dir=log_dir,
+        trainer=trainer,
+        model=model,
+        test_loader=test_loader,
+        output_dir=hydra_cfg.runtime.output_dir
+    )
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
     torch.save(model.state_dict(), model_path)
