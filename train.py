@@ -425,10 +425,10 @@ def main(cfg: DictConfig) -> None:
     # generate pdf report
     generate_report(
         log_dir=log_dir,
-        trainer=trainer,
         model=model,
         test_loader=test_loader,
-        output_dir=hydra_cfg.runtime.output_dir
+        output_dir=hydra_cfg.runtime.output_dir,
+        cfg=cfg
     )
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
