@@ -23,7 +23,6 @@ import datetime
 from collections import defaultdict
 
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-from tensorboard.backend.event_processing.event_accumulator import ScalarEvent
 import os
 import datetime
 import numpy as np
@@ -34,7 +33,6 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
 from reportlab.lib.units import inch
-from tensorboard.backend.event_processing.event_processing import EventAccumulator
 from hydra.core.hydra_config import HydraConfig
 
 def generate_report(log_dir, model, test_loader, output_dir, cfg):
