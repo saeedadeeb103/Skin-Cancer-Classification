@@ -170,7 +170,7 @@ def main(cfg: DictConfig) -> None:
     # Evaluate the model
     trainer.test(model, test_loader)
 
-
+    print(trainer.logged_metrics.keys())
     # generate pdf report
     generate_report(trainer, model, test_loader, hydra_cfg.runtime.output_dir)
     # Save the trained model
