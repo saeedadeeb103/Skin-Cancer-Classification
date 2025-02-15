@@ -99,7 +99,7 @@ def load_tensorboard_metrics(log_dir):
         metrics[tag] = [e.value for e in events]
     return metrics
 
-def create_metadata_section(model, cfg, styles):
+def create_metadata_section(model, cfg, styles, metrics):  # Add metrics parameter
     """Create model metadata section"""
     elements = []
     meta_style = ParagraphStyle(
@@ -412,7 +412,6 @@ def main(cfg: DictConfig) -> None:
         callbacks=[checkpoint_callback, early_stop_callback],
         accumulate_grad_batches=2  # Gradient accumulation for memory efficiency
     )
-    log_dir = logger.log_dir
 
     # Train the model
     trainer.fit(model, train_loader, val_loader)
@@ -423,13 +422,15 @@ def main(cfg: DictConfig) -> None:
     
     
     # generate pdf report
-    generate_report(
-        log_dir=log_dir,
+    report_path = generate_report(
+        log_dir=logger.log_dir,
         model=model,
         test_loader=test_loader,
         output_dir=hydra_cfg.runtime.output_dir,
-        cfg=cfg
+        cfg=cfg  # Pass your Hydra config object
     )
+
+    print(f"Generated comprehensive report at: {report_path}")
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
     torch.save(model.state_dict(), model_path)
