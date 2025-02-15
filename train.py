@@ -21,96 +21,122 @@ from reportlab.lib.utils import ImageReader
 import os
 
 
-def generate_plots(trainer, save_dir="reports"):
-    """Generate training graphs for Loss, Precision, Recall, and F1-score."""
-    os.makedirs(save_dir, exist_ok=True)
+def generate_report(metrics, trainer, model, test_loader, output_dir):
+    """
+    Generates a detailed PDF report with training metrics, validation metrics, and sample predictions.
 
-    metrics = trainer.callback_metrics
-    epochs = list(range(1, len(metrics["val_loss"]) + 1))
+    Args:
+        metrics (dict): Dictionary containing training and validation metrics.
+        trainer (pl.Trainer): PyTorch Lightning Trainer object.
+        model (pl.LightningModule): Trained model.
+        test_loader (DataLoader): DataLoader for the test dataset.
+        output_dir (str): Directory to save the report and plots.
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
 
-    def plot_graph(x, y, title, ylabel, save_path):
-        plt.figure()
-        plt.plot(x, y, marker='o')
-        plt.xlabel("Epochs")
-        plt.ylabel(ylabel)
-        plt.title(title)
-        plt.grid()
-        plt.savefig(save_path, bbox_inches='tight')
-        plt.close()
-
-    plot_graph(epochs, metrics["train_loss"], "Training Loss Over Epochs", "Loss", f"{save_dir}/train_loss.png")
-    plot_graph(epochs, metrics["val_loss"], "Validation Loss Over Epochs", "Loss", f"{save_dir}/val_loss.png")
-    plot_graph(epochs, metrics["val_f1"], "F1 Score Over Epochs", "F1 Score", f"{save_dir}/f1_score.png")
-    plot_graph(epochs, metrics["val_precision"], "Precision Over Epochs", "Precision", f"{save_dir}/precision.png")
-    plot_graph(epochs, metrics["val_recall"], "Recall Over Epochs", "Recall", f"{save_dir}/recall.png")
-
-def generate_predictions(model, test_loader, save_path="reports/sample_predictions.png", num_samples=5):
-    """Generate and save sample predictions from the test set."""
-    model.eval()
-    images, preds, labels = [], [], []
-
-    with torch.no_grad():
-        for batch in test_loader:
-            x, y = batch
-            logits = model(x)
-            predictions = torch.argmax(logits, dim=1)
-
-            for img, pred, label in zip(x, predictions, y):
-                images.append(img)
-                preds.append(pred.item())
-                labels.append(label.item())
-
-                if len(images) >= num_samples:
-                    break
-            if len(images) >= num_samples:
-                break
-    
-    # Save sample images with predictions
-    fig, axes = plt.subplots(1, len(images), figsize=(12, 3))
-    for i, (img, pred, label) in enumerate(zip(images, preds, labels)):
-        img = img.permute(1, 2, 0).numpy()
-        axes[i].imshow(img)
-        axes[i].axis("off")
-        axes[i].set_title(f"GT: {label} | Pred: {pred}")
-
-    plt.savefig(save_path, bbox_inches='tight')
+    # Plot training and validation loss
+    plt.figure(figsize=(10, 5))
+    if 'train_loss' in metrics:
+        plt.plot(metrics['train_loss'], label='Train Loss', color='blue', linewidth=2)
+    if 'val_loss' in metrics:
+        plt.plot(metrics['val_loss'], label='Validation Loss', color='orange', linewidth=2)
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Loss', fontsize=12)
+    plt.title('Training and Validation Loss', fontsize=14, fontweight='bold')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    loss_plot_path = os.path.join(output_dir, 'loss_plot.png')
+    plt.savefig(loss_plot_path, bbox_inches='tight', dpi=300)
     plt.close()
 
-def create_pdf_report(cfg, save_dir="reports"):
-    """Generate a PDF report containing training results."""
-    os.makedirs(save_dir, exist_ok=True)
-    output_pdf = f"{save_dir}/training_report.pdf"
-    c = canvas.Canvas(output_pdf, pagesize=letter)
-    width, height = letter
+    # Plot F1, Recall, Precision
+    plt.figure(figsize=(10, 5))
+    if 'val_f1' in metrics:
+        plt.plot(metrics['val_f1'], label='F1 Score', color='green', linewidth=2)
+    if 'val_recall' in metrics:
+        plt.plot(metrics['val_recall'], label='Recall', color='red', linewidth=2)
+    if 'val_precision' in metrics:
+        plt.plot(metrics['val_precision'], label='Precision', color='purple', linewidth=2)
+    plt.xlabel('Epoch', fontsize=12)
+    plt.ylabel('Score', fontsize=12)
+    plt.title('Validation Metrics', fontsize=14, fontweight='bold')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.6)
+    metrics_plot_path = os.path.join(output_dir, 'metrics_plot.png')
+    plt.savefig(metrics_plot_path, bbox_inches='tight', dpi=300)
+    plt.close()
 
+    # Save some sample images with predictions
+    model.eval()
+    sample_images = []
+    with torch.no_grad():
+        for i, (x, y) in enumerate(test_loader):
+            if i >= 5:  # Save only 5 samples
+                break
+            logits = model(x)
+            preds = torch.argmax(logits, dim=1)
+            for j in range(x.size(0)):
+                img = x[j].cpu().numpy().transpose(1, 2, 0)
+                img = (img * 255).astype('uint8')
+                plt.figure(figsize=(5, 5))
+                plt.imshow(img)
+                plt.title(f'GT: {y[j].item()}, Pred: {preds[j].item()}', fontsize=10)
+                plt.axis('off')
+                img_path = os.path.join(output_dir, f'sample_{i}_{j}.png')
+                plt.savefig(img_path, bbox_inches='tight', dpi=150)
+                plt.close()
+                sample_images.append(img_path)
+
+    # Generate PDF
+    pdf_path = os.path.join(output_dir, 'report.pdf')
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+
+    # Title
     c.setFont("Helvetica-Bold", 16)
-    c.drawString(200, height - 50, "Model Training Report")
-
+    c.drawString(100, 750, "Training Report")
     c.setFont("Helvetica", 12)
-    c.drawString(50, height - 80, f"Dataset: {cfg.dataset_name}")
-    c.drawString(50, height - 100, f"Model: {cfg.model.encoder}")
-    c.drawString(50, height - 120, f"Total Epochs: {cfg.max_epochs}")
-    c.drawString(50, height - 140, f"Batch Size: {cfg.batch_size}")
+    c.drawString(100, 730, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Insert Graphs
-    y_offset = height - 180
-    graph_files = ["train_loss.png", "val_loss.png", "f1_score.png", "precision.png", "recall.png"]
-    for graph in graph_files:
-        img = ImageReader(f"{save_dir}/{graph}")
-        c.drawImage(img, 50, y_offset, width=500, height=200, preserveAspectRatio=True, mask='auto')
-        y_offset -= 220
+    # Add loss plot
+    if os.path.exists(loss_plot_path):
+        c.drawImage(loss_plot_path, 100, 500, width=400, height=200)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(100, 480, "Training and Validation Loss")
 
-    # Insert Sample Predictions
-    y_offset -= 40
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y_offset, "Sample Predictions:")
-    y_offset -= 20
+    # Add metrics plot
+    if os.path.exists(metrics_plot_path):
+        c.drawImage(metrics_plot_path, 100, 250, width=400, height=200)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(100, 230, "Validation Metrics")
 
-    sample_img = ImageReader(f"{save_dir}/sample_predictions.png")
-    c.drawImage(sample_img, 50, y_offset - 200, width=500, height=200, preserveAspectRatio=True, mask='auto')
+    # Add sample images
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, 200, "Sample Predictions")
+    y_offset = 180
+    for img_path in sample_images:
+        if os.path.exists(img_path):
+            c.drawImage(img_path, 100, y_offset, width=100, height=100)
+            y_offset -= 120
+
+    # Add summary statistics
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(100, y_offset - 20, "Summary Statistics")
+    c.setFont("Helvetica", 10)
+    if 'train_loss' in metrics:
+        c.drawString(100, y_offset - 40, f"Final Training Loss: {metrics['train_loss'][-1]:.4f}")
+    if 'val_loss' in metrics:
+        c.drawString(100, y_offset - 60, f"Final Validation Loss: {metrics['val_loss'][-1]:.4f}")
+    if 'val_f1' in metrics:
+        c.drawString(100, y_offset - 80, f"Final Validation F1 Score: {metrics['val_f1'][-1]:.4f}")
+    if 'val_recall' in metrics:
+        c.drawString(100, y_offset - 100, f"Final Validation Recall: {metrics['val_recall'][-1]:.4f}")
+    if 'val_precision' in metrics:
+        c.drawString(100, y_offset - 120, f"Final Validation Precision: {metrics['val_precision'][-1]:.4f}")
 
     c.save()
-    print(f"Report saved as {output_pdf}")
+
+    print(f"Report generated at {pdf_path}")
 
 
 def set_seed(seed):
@@ -188,15 +214,11 @@ def main(cfg: DictConfig) -> None:
 
     # Evaluate the model
     train_val_metrics = trainer.logged_metrics.copy()  # Save a copy of the metrics
-    generate_plots(trainer)
-    generate_predictions(model, test_loader)
-    create_pdf_report(cfg)
-
     trainer.test(model, test_loader)
     
     
     # generate pdf report
-    
+    generate_report(train_val_metrics, trainer, model, test_loader, hydra_cfg.runtime.output_dir)
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
     torch.save(model.state_dict(), model_path)
