@@ -69,7 +69,7 @@ def generate_report(log_dir, model, test_loader, output_dir, cfg):
     story.append(Spacer(1, 12))
     
     # Add metadata section
-    story += create_metadata_section(model, cfg, styles)
+    story += create_metadata_section(model, cfg, styles, metrics=metrics)
     story.append(Spacer(1, 24))
     
     # Add hyperparameters table
