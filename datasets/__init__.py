@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 from .image_dataset import CustomDataset
 
 __dataset_mapper__ = {
-    "image": CustomDataset,
+    "HAM1000": CustomDataset,
 }
 
 def list_datasets() -> List[str]:

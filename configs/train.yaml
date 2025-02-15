@@ -1,5 +1,5 @@
 input_type: "image"
-dataset_name: ""
+dataset_name: "HAM1000"
 model:
   encoder: 'resnet18'
   optimizer:
@@ -9,12 +9,13 @@ model:
   freeze_base: True
 
 dataset:
-  root_path: ""
+  root_path: "HAM1000"
   split_ratios: [0.7, 0.2, 0.1]
+  target_size: [224, 224]
 
 num_classes: 2
 batch_size: 32
-max_epochs: 20
-min_epochs: 10
+max_epochs: 1
+min_epochs: 1
 output_dir: outputs
 seed: 42
