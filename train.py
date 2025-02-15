@@ -22,7 +22,7 @@ import os
 import datetime
 from collections import defaultdict
 
-from tensorboard.backend.event_processing.event_processing import EventAccumulator
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 from tensorboard.backend.event_processing.event_accumulator import ScalarEvent
 import os
 import datetime
