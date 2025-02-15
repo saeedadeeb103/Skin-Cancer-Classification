@@ -21,14 +21,16 @@ from reportlab.lib.utils import ImageReader
 import os
 
 
-def generate_report(trainer, model, test_loader, output_dir):
-    # Collect logged metrics
-    metrics = trainer.logged_metrics
+def generate_report(metrics, trainer, model, test_loader, output_dir):
+    # Print available keys for debugging
+    print("Available metrics keys:", metrics.keys())
 
     # Plot training and validation loss
     plt.figure(figsize=(10, 5))
-    plt.plot(metrics['train_loss'], label='Train Loss')
-    plt.plot(metrics['val_loss'], label='Validation Loss')
+    if 'train_loss' in metrics:
+        plt.plot(metrics['train_loss'], label='Train Loss')
+    if 'val_loss' in metrics:
+        plt.plot(metrics['val_loss'], label='Validation Loss')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.title('Training and Validation Loss')
@@ -39,9 +41,12 @@ def generate_report(trainer, model, test_loader, output_dir):
 
     # Plot F1, Recall, Precision
     plt.figure(figsize=(10, 5))
-    plt.plot(metrics['val_f1'], label='F1 Score')
-    plt.plot(metrics['val_recall'], label='Recall')
-    plt.plot(metrics['val_precision'], label='Precision')
+    if 'val_f1' in metrics:
+        plt.plot(metrics['val_f1'], label='F1 Score')
+    if 'val_recall' in metrics:
+        plt.plot(metrics['val_recall'], label='Recall')
+    if 'val_precision' in metrics:
+        plt.plot(metrics['val_precision'], label='Precision')
     plt.xlabel('Epoch')
     plt.ylabel('Score')
     plt.title('Validation Metrics')
@@ -75,19 +80,22 @@ def generate_report(trainer, model, test_loader, output_dir):
     c.drawString(100, 750, "Training Report")
 
     # Add loss plot
-    c.drawImage(loss_plot_path, 100, 500, width=400, height=200)
-    c.drawString(100, 480, "Training and Validation Loss")
+    if os.path.exists(loss_plot_path):
+        c.drawImage(loss_plot_path, 100, 500, width=400, height=200)
+        c.drawString(100, 480, "Training and Validation Loss")
 
     # Add metrics plot
-    c.drawImage(metrics_plot_path, 100, 250, width=400, height=200)
-    c.drawString(100, 230, "Validation Metrics")
+    if os.path.exists(metrics_plot_path):
+        c.drawImage(metrics_plot_path, 100, 250, width=400, height=200)
+        c.drawString(100, 230, "Validation Metrics")
 
     # Add sample images
     c.drawString(100, 200, "Sample Predictions")
     y_offset = 180
     for img_path in sample_images:
-        c.drawImage(img_path, 100, y_offset, width=100, height=100)
-        y_offset -= 120
+        if os.path.exists(img_path):
+            c.drawImage(img_path, 100, y_offset, width=100, height=100)
+            y_offset -= 120
 
     c.save()
 
