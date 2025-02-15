@@ -19,14 +19,33 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 import os
-from datetime import datetime
+import datetime
+from collections import defaultdict
+
+
+
+class MetricsTracker(pl.Callback):
+    def __init__(self):
+        super().__init__()
+        self.metrics = defaultdict(list)
+    
+    def on_train_epoch_end(self, trainer, pl_module):
+        metrics = trainer.logged_metrics
+        if 'train_loss' in metrics:
+            self.metrics['train_loss'].append(metrics['train_loss'].item())
+    
+    def on_validation_epoch_end(self, trainer, pl_module):
+        metrics = trainer.logged_metrics
+        for key in ['val_loss', 'val_f1', 'val_recall', 'val_precision']:
+            if key in metrics:
+                self.metrics[key].append(metrics[key].item())
 
 def generate_report(metrics, trainer, model, test_loader, output_dir):
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
     # Set professional styling for plots
-    plt.style.use('seaborn')
+    plt.style.use('seaborn-v0_8')
     plt.rcParams.update({
         'font.size': 12,
         'axes.titlesize': 14,
@@ -38,9 +57,16 @@ def generate_report(metrics, trainer, model, test_loader, output_dir):
     })
 
     # ========== Metrics Visualization ==========
-    def create_metric_plot():
+    def create_loss_plot():
         fig, ax = plt.subplots()
         metrics_added = False
+        
+        if 'train_loss' in metrics:
+            train_loss = metrics['train_loss']
+            if isinstance(train_loss, torch.Tensor):
+                train_loss = [train_loss.item()]
+            ax.plot(train_loss, label='Train Loss', linewidth=2, color='navy')
+            metrics_added = True
         
         # Plot validation metrics
         for metric in ['val_f1', 'val_recall', 'val_precision']:
@@ -273,6 +299,7 @@ def main(cfg: DictConfig) -> None:
 
     # Define logger
     logger = TensorBoardLogger(save_dir="logs", name="outputloggs")
+    metrics_tracker = MetricsTracker()
 
     # Initialize the trainer
     trainer = pl.Trainer(
@@ -281,7 +308,7 @@ def main(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         precision=16 if torch.cuda.is_available() else 32,  # Mixed precision training
         logger=logger,
-        callbacks=[checkpoint_callback, early_stop_callback],
+        callbacks=[checkpoint_callback, early_stop_callback, metrics_tracker],
         accumulate_grad_batches=2  # Gradient accumulation for memory efficiency
     )
 
@@ -294,7 +321,7 @@ def main(cfg: DictConfig) -> None:
     
     
     # generate pdf report
-    generate_report(train_val_metrics, trainer, model, test_loader, hydra_cfg.runtime.output_dir)
+    generate_report(metrics_tracker.metrics, trainer, model, test_loader, hydra_cfg.runtime.output_dir)
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
     torch.save(model.state_dict(), model_path)
