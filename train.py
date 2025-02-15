@@ -188,14 +188,15 @@ def main(cfg: DictConfig) -> None:
 
     # Evaluate the model
     train_val_metrics = trainer.logged_metrics.copy()  # Save a copy of the metrics
-    trainer.test(model, test_loader)
-    
-    
-    # generate pdf report
     generate_plots(trainer)
     generate_predictions(model, test_loader)
     create_pdf_report(cfg)
 
+    trainer.test(model, test_loader)
+    
+    
+    # generate pdf report
+    
     # Save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
     torch.save(model.state_dict(), model_path)
