@@ -19,7 +19,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 import os
 import datetime
-from utils import generate_report
+from utils.pdf_report import generate_report
             
 def set_seed(seed):
     torch.manual_seed(seed)
