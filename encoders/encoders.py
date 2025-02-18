@@ -12,15 +12,15 @@ class timm_backbones(pl.LightningModule):
 
         self.encoder = encoder
         self.model = timm.create_model(encoder, pretrained=True)
-        if self.model.default_cfg["input_size"][1] == 3:  # If model expects 3 channels
-            self.model.conv1 = torch.nn.Conv2d(
-                in_channels=1,  # Change to single channel
-                out_channels=self.model.conv1.out_channels,
-                kernel_size=self.model.conv1.kernel_size,
-                stride=self.model.conv1.stride,
-                padding=self.model.conv1.padding,
-                bias=False
-            )
+        # if self.model.default_cfg["input_size"][1] == 3:  # If model expects 3 channels
+        #     self.model.conv1 = torch.nn.Conv2d(
+        #         in_channels=1,  # Change to single channel
+        #         out_channels=self.model.conv1.out_channels,
+        #         kernel_size=self.model.conv1.kernel_size,
+        #         stride=self.model.conv1.stride,
+        #         padding=self.model.conv1.padding,
+        #         bias=False
+        #     )
 
         self.accuracy = Accuracy(task="multiclass", num_classes=num_classes)
         self.precision = Precision(task="multiclass", num_classes=num_classes)
@@ -49,7 +49,7 @@ class timm_backbones(pl.LightningModule):
                 self.optimizer = optim.Adam(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
             elif optimizer_name == 'SGD':
                 self.optimizer = optim.SGD(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
-            elif optimizer_name == 'Adamw':
+            elif optimizer_name == 'AdamW':
                 self.optimizer = optim.AdamW(self.parameters(), lr=optimizer_lr, weight_decay=optimizer_weight_decay)
             else:
                 raise ValueError(f"Unsupported optimizer: {optimizer_name}")
