@@ -3,6 +3,7 @@ from collections import defaultdict
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 import os
 import datetime
+from torchvision import transforms
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
