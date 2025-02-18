@@ -101,7 +101,9 @@ def main(cfg: DictConfig) -> None:
     
     
     # generate pdf report
-    report_path = generate_report(
+    pdf_report = get_pdf_report()
+
+    report_path = pdf_report.generate_report(
         log_dir=logger.log_dir,
         model=model,
         test_loader=test_loader,
