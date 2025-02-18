@@ -19,7 +19,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 import os
 import datetime
-from utils import get_pdf_report
+from utils.pdf_report import generate_report
             
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -101,9 +101,7 @@ def main(cfg: DictConfig) -> None:
     
     
     # generate pdf report
-    pdf_report = get_pdf_report()
-
-    report_path = pdf_report.generate_report(
+    report_path = generate_report(
         log_dir=logger.log_dir,
         model=model,
         test_loader=test_loader,
