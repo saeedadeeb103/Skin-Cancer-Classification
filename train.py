@@ -11,7 +11,6 @@ from datasets import list_datasets, get_dataset_by_name
 from encoders.encoders import timm_backbones
 from torchaudio import transforms as T
 from hydra.core.hydra_config import HydraConfig
-from utils.helper_functions import collate_fn
 import numpy as np
 import random
 import matplotlib.pyplot as plt
