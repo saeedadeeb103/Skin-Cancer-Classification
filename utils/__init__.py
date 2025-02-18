@@ -1,2 +1,4 @@
 from . import helper_functions
-from . import pdf_report
+def get_pdf_report():
+    from . import pdf_report
+    return pdf_report
