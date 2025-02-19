@@ -82,7 +82,6 @@ class timm_backbones(pl.LightningModule):
         # loss += self.l1_lambda * l1_norm
 
         self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-        self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=True)
         self.log('train_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True)
         self.log('train_f1', f1, prog_bar=True, on_epoch=True, on_step=True)
 
