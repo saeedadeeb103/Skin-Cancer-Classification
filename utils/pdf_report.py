@@ -144,7 +144,7 @@ def create_hyperparameters_table(cfg, styles):
     return elements
 
 def create_training_curves_section(metrics, output_dir, styles):
-    """Create section with training curves"""
+    """Create section with Training & Validation Metric Graphs"""
     elements = []
 
     # Define plot paths
@@ -162,7 +162,7 @@ def create_training_curves_section(metrics, output_dir, styles):
     create_precision_recall_plot(metrics).savefig(precision_recall_path, bbox_inches='tight')
 
     # Add to report
-    elements.append(Paragraph(" Training Curves ", styles['Heading2']))
+    elements.append(Paragraph(" Training & Validation Metric Graphs ", styles['Heading2']))
     elements.append(Spacer(1, 12))
 
     # Create two-column layout for plots
@@ -180,90 +180,106 @@ def create_training_curves_section(metrics, output_dir, styles):
 
 
 def create_loss_plot(metrics):
-    """Create professional loss curves plot"""
     plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Use epoch-level metrics
+    # Plot training loss (already epoch-level)
     if 'train_loss' in metrics:
-        ax.plot(metrics['train_loss'], label='Training Loss', linewidth=2, color='#2B3A67', alpha=0.9)
+        ax.plot(metrics['train_loss'], 
+                label='Training Loss', 
+                linewidth=2,
+                color='#2B3A67',
+                marker='o')
 
-    if 'val_loss_epoch' in metrics:  # Use val_loss_epoch instead of val_loss_step
-        ax.plot(metrics['val_loss_epoch'], label='Validation Loss', linewidth=2, color='#7EBDC2', linestyle='--')
+    # Plot validation loss (epoch-level)
+    if 'val_loss_epoch' in metrics:
+        ax.plot(metrics['val_loss_epoch'], 
+                label='Validation Loss', 
+                linewidth=2,
+                color='#7EBDC2',
+                marker='s',
+                linestyle='--')
 
     ax.set_title('Training and Validation Loss', fontsize=14, pad=15)
     ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_xticks(range(len(metrics['train_loss'])))  # Match epoch count
     ax.set_ylabel('Loss', fontsize=12)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(frameon=True, facecolor='white')
+    ax.legend()
     plt.tight_layout()
     return fig
 
 def create_accuracy_plot(metrics):
-    """Create accuracy curves plot"""
     plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Use epoch-level metrics
-    if 'train_acc_epoch' in metrics:  # Use train_acc_epoch instead of train_accuracy
-        ax.plot(metrics['train_acc_epoch'], label='Training Accuracy', linewidth=2, color='#3A5A40')
+    if 'train_acc_epoch' in metrics:
+        ax.plot(metrics['train_acc_epoch'],
+                label='Training Accuracy',
+                color='#3A5A40',
+                marker='o')
 
-    if 'val_acc_epoch' in metrics:  # Use val_acc_epoch instead of val_accuracy
-        ax.plot(metrics['val_acc_epoch'], label='Validation Accuracy', linewidth=2, color='#FF6B35', linestyle='--')
+    if 'val_acc_epoch' in metrics:
+        ax.plot(metrics['val_acc_epoch'],
+                label='Validation Accuracy',
+                color='#FF6B35',
+                marker='s', 
+                linestyle='--')
 
-    ax.set_title('Training and Validation Accuracy', fontsize=14, pad=15)
-    ax.set_xlabel('Epoch', fontsize=12)
-    ax.set_ylabel('Accuracy', fontsize=12)
+    ax.set_title('Accuracy Curves', fontsize=14)
+    ax.set_xlabel('Epoch')
+    ax.set_xticks(range(len(metrics['train_acc_epoch'])))
+    ax.set_ylabel('Accuracy')
     ax.set_ylim(0, 1.05)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(frameon=True, facecolor='white')
-    plt.tight_layout()
+    ax.legend()
     return fig
-
 
 def create_f1_plot(metrics):
-    """Create F1 score curves plot"""
     plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Use epoch-level metrics
-    if 'train_f1_epoch' in metrics:  # Use train_f1_epoch instead of train_f1
-        ax.plot(metrics['train_f1_epoch'], label='Training F1 Score', linewidth=2, color='#3A5A40')
+    if 'train_f1_epoch' in metrics:
+        ax.plot(metrics['train_f1_epoch'],
+                label='Train F1',
+                color='#3A5A40',
+                marker='o')
 
-    if 'val_f1_epoch' in metrics:  # Use val_f1_epoch instead of val_f1
-        ax.plot(metrics['val_f1_epoch'], label='Validation F1 Score', linewidth=2, color='#FF6B35', linestyle='--')
+    if 'val_f1_epoch' in metrics:
+        ax.plot(metrics['val_f1_epoch'],
+                label='Validation F1',
+                color='#FF6B35',
+                marker='s',
+                linestyle='--')
 
-    ax.set_title('Training and Validation F1 Score', fontsize=14, pad=15)
-    ax.set_xlabel('Epoch', fontsize=12)
-    ax.set_ylabel('F1 Score', fontsize=12)
+    ax.set_title('F1 Score Evolution', fontsize=14)
+    ax.set_xticks(range(len(metrics['train_f1_epoch'])))
+    ax.set_xlabel('Epoch')
     ax.set_ylim(0, 1.05)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(frameon=True, facecolor='white')
-    plt.tight_layout()
+    ax.legend()
     return fig
-
 
 def create_precision_recall_plot(metrics):
-    """Create precision and recall curves plot"""
     plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    # Use epoch-level metrics
-    if 'val_precision_epoch' in metrics:  # Use val_precision_epoch instead of val_precision
-        ax.plot(metrics['val_precision_epoch'], label='Validation Precision', linewidth=2, color='#3A5A40')
+    if 'val_precision_epoch' in metrics:
+        ax.plot(metrics['val_precision_epoch'],
+                label='Precision',
+                color='#3A5A40',
+                marker='o')
 
-    if 'val_recall_epoch' in metrics:  # Use val_recall_epoch instead of val_recall
-        ax.plot(metrics['val_recall_epoch'], label='Validation Recall', linewidth=2, color='#FF6B35', linestyle='--')
+    if 'val_recall_epoch' in metrics:
+        ax.plot(metrics['val_recall_epoch'],
+                label='Recall',
+                color='#FF6B35',
+                marker='s',
+                linestyle='--')
 
-    ax.set_title('Validation Precision and Recall', fontsize=14, pad=15)
-    ax.set_xlabel('Epoch', fontsize=12)
-    ax.set_ylabel('Score', fontsize=12)
+    ax.set_title('Validation Precision & Recall', fontsize=14)
+    ax.set_xticks(range(len(metrics['val_precision_epoch'])))
+    ax.set_xlabel('Epoch')
     ax.set_ylim(0, 1.05)
-    ax.grid(True, linestyle='--', alpha=0.6)
-    ax.legend(frameon=True, facecolor='white')
-    plt.tight_layout()
+    ax.legend()
     return fig
-
 
 
 def create_predictions_section(model, test_loader, output_dir, styles):
