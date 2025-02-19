@@ -82,8 +82,8 @@ class timm_backbones(pl.LightningModule):
         # loss += self.l1_lambda * l1_norm
 
         self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
-        self.log('train_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True)
-        self.log('train_f1', f1, prog_bar=True, on_epoch=True, on_step=True)
+        self.log('train_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True, logger=True)
+        self.log('train_f1', f1, prog_bar=True, on_epoch=True, on_step=True, logger=True)
 
         return loss
 
@@ -100,11 +100,11 @@ class timm_backbones(pl.LightningModule):
         recall = self.recall(y, preds)
         f1 = self.f1(y, preds)
 
-        self.log('val_loss', loss, prog_bar=True, on_epoch=True, on_step=True)
-        self.log('val_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True)
-        self.log('val_precision', precision, prog_bar=True, on_epoch=True, on_step=True)
-        self.log('val_recall', recall, prog_bar=True, on_epoch=True, on_step=True)
-        self.log('val_f1', f1, prog_bar=True, on_epoch=True, on_step=True)
+        self.log('val_loss', loss, prog_bar=True, on_epoch=True, on_step=True, logger=True)
+        self.log('val_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True, logger=True)
+        self.log('val_precision', precision, prog_bar=True, on_epoch=True, on_step=True, logger=True)
+        self.log('val_recall', recall, prog_bar=True, on_epoch=True, on_step=True, logger=True)
+        self.log('val_f1', f1, prog_bar=True, on_epoch=True, on_step=True, logger=True)
 
         return loss
 

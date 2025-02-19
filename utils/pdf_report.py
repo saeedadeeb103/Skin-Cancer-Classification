@@ -144,85 +144,126 @@ def create_hyperparameters_table(cfg, styles):
     return elements
 
 def create_training_curves_section(metrics, output_dir, styles):
-    """Create section with separate training curves"""
+    """Create section with training curves"""
     elements = []
-    
-    # Generate and save plots
-    plot_paths = {
-        'loss': os.path.join(output_dir, 'loss_curves.png'),
-        'accuracy': os.path.join(output_dir, 'accuracy_curves.png'),
-        'f1': os.path.join(output_dir, 'f1_curves.png'),
-        'precision_recall': os.path.join(output_dir, 'precision_recall_curves.png')
-    }
-    
-    create_loss_plot(metrics).savefig(plot_paths['loss'], bbox_inches='tight')
-    create_accuracy_plot(metrics).savefig(plot_paths['accuracy'], bbox_inches='tight')
-    create_f1_plot(metrics).savefig(plot_paths['f1'], bbox_inches='tight')
-    create_precision_recall_plot(metrics).savefig(plot_paths['precision_recall'], bbox_inches='tight')
-    
+
+    # Define plot paths
+    loss_path = os.path.join(output_dir, 'loss_curves.png')
+    accuracy_path = os.path.join(output_dir, 'accuracy_curves.png')
+    f1_path = os.path.join(output_dir, 'f1_curves.png')
+    precision_recall_path = os.path.join(output_dir, 'precision_recall_curves.png')
+
+
+
+    # Generate plots
+    create_loss_plot(metrics).savefig(loss_path, bbox_inches='tight')
+    create_accuracy_plot(metrics).savefig(accuracy_path, bbox_inches='tight')
+    create_f1_plot(metrics).savefig(f1_path, bbox_inches='tight')
+    create_precision_recall_plot(metrics).savefig(precision_recall_path, bbox_inches='tight')
+
     # Add to report
-    elements.append(Paragraph("<b>Training Curves</b>", styles['Heading2']))
+    elements.append(Paragraph(" Training Curves ", styles['Heading2']))
     elements.append(Spacer(1, 12))
-    
-    # Create a table layout for the images (2 per row)
+
+    # Create two-column layout for plots
     img_table = Table([
-        [Image(plot_paths['loss'], width=3.5*inch, height=2.5*inch),
-         Image(plot_paths['accuracy'], width=3.5*inch, height=2.5*inch)],
-        [Image(plot_paths['f1'], width=3.5*inch, height=2.5*inch),
-         Image(plot_paths['precision_recall'], width=3.5*inch, height=2.5*inch)]
+        [Image(loss_path, width=3.5*inch, height=2.5*inch), 
+         Image(accuracy_path, width=3.5*inch, height=2.5*inch)],
+        [Image(f1_path, width=3.5*inch, height=2.5*inch), 
+         Image(precision_recall_path, width=3.5*inch, height=2.5*inch)]
     ], colWidths=[4*inch, 4*inch])
-    
+
     elements.append(img_table)
     elements.append(Spacer(1, 24))
+
     return elements
 
+
 def create_loss_plot(metrics):
-    """Create loss curve plot"""
+    """Create professional loss curves plot"""
+    plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(metrics.get('train_loss', []), label='Training Loss', linewidth=2, color='blue')
-    ax.plot(metrics.get('val_loss', []), label='Validation Loss', linewidth=2, color='red', linestyle='--')
-    ax.set_title('Training and Validation Loss')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Loss')
-    ax.legend()
-    ax.grid()
+
+    # Use epoch-level metrics
+    if 'train_loss' in metrics:
+        ax.plot(metrics['train_loss'], label='Training Loss', linewidth=2, color='#2B3A67', alpha=0.9)
+
+    if 'val_loss_epoch' in metrics:  # Use val_loss_epoch instead of val_loss_step
+        ax.plot(metrics['val_loss_epoch'], label='Validation Loss', linewidth=2, color='#7EBDC2', linestyle='--')
+
+    ax.set_title('Training and Validation Loss', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Loss', fontsize=12)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
     return fig
 
 def create_accuracy_plot(metrics):
-    """Create accuracy curve plot"""
+    """Create accuracy curves plot"""
+    plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(metrics.get('train_accuracy', []), label='Training Accuracy', linewidth=2, color='blue')
-    ax.plot(metrics.get('val_accuracy', []), label='Validation Accuracy', linewidth=2, color='red', linestyle='--')
-    ax.set_title('Training and Validation Accuracy')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Accuracy')
-    ax.legend()
-    ax.grid()
+
+    # Use epoch-level metrics
+    if 'train_acc_epoch' in metrics:  # Use train_acc_epoch instead of train_accuracy
+        ax.plot(metrics['train_acc_epoch'], label='Training Accuracy', linewidth=2, color='#3A5A40')
+
+    if 'val_acc_epoch' in metrics:  # Use val_acc_epoch instead of val_accuracy
+        ax.plot(metrics['val_acc_epoch'], label='Validation Accuracy', linewidth=2, color='#FF6B35', linestyle='--')
+
+    ax.set_title('Training and Validation Accuracy', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Accuracy', fontsize=12)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
     return fig
+
 
 def create_f1_plot(metrics):
-    """Create F1-score curve plot"""
+    """Create F1 score curves plot"""
+    plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(metrics.get('train_f1', []), label='Training F1', linewidth=2, color='blue')
-    ax.plot(metrics.get('val_f1', []), label='Validation F1', linewidth=2, color='red', linestyle='--')
-    ax.set_title('Training and Validation F1-Score')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('F1 Score')
-    ax.legend()
-    ax.grid()
+
+    # Use epoch-level metrics
+    if 'train_f1_epoch' in metrics:  # Use train_f1_epoch instead of train_f1
+        ax.plot(metrics['train_f1_epoch'], label='Training F1 Score', linewidth=2, color='#3A5A40')
+
+    if 'val_f1_epoch' in metrics:  # Use val_f1_epoch instead of val_f1
+        ax.plot(metrics['val_f1_epoch'], label='Validation F1 Score', linewidth=2, color='#FF6B35', linestyle='--')
+
+    ax.set_title('Training and Validation F1 Score', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('F1 Score', fontsize=12)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
     return fig
 
+
 def create_precision_recall_plot(metrics):
-    """Create Precision and Recall plot"""
+    """Create precision and recall curves plot"""
+    plt.style.use('seaborn-v0_8')
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(metrics.get('val_precision', []), label='Validation Precision', linewidth=2, color='red', linestyle='--')
-    ax.plot(metrics.get('val_recall', []), label='Validation Recall', linewidth=2, color='orange', linestyle='--')
-    ax.set_title('Validation Precision & Recall')
-    ax.set_xlabel('Epoch')
-    ax.set_ylabel('Score')
-    ax.legend()
-    ax.grid()
+
+    # Use epoch-level metrics
+    if 'val_precision_epoch' in metrics:  # Use val_precision_epoch instead of val_precision
+        ax.plot(metrics['val_precision_epoch'], label='Validation Precision', linewidth=2, color='#3A5A40')
+
+    if 'val_recall_epoch' in metrics:  # Use val_recall_epoch instead of val_recall
+        ax.plot(metrics['val_recall_epoch'], label='Validation Recall', linewidth=2, color='#FF6B35', linestyle='--')
+
+    ax.set_title('Validation Precision and Recall', fontsize=14, pad=15)
+    ax.set_xlabel('Epoch', fontsize=12)
+    ax.set_ylabel('Score', fontsize=12)
+    ax.set_ylim(0, 1.05)
+    ax.grid(True, linestyle='--', alpha=0.6)
+    ax.legend(frameon=True, facecolor='white')
+    plt.tight_layout()
     return fig
+
 
 
 def create_predictions_section(model, test_loader, output_dir, styles):
