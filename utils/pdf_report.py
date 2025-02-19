@@ -12,7 +12,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
 from reportlab.lib.units import inch
-from hydra.core.hydra_config import HydraConfig
+
 
 def generate_report(log_dir, model, test_loader, output_dir, cfg):
     # Create output directory if needed
@@ -144,41 +144,86 @@ def create_hyperparameters_table(cfg, styles):
     return elements
 
 def create_training_curves_section(metrics, output_dir, styles):
-    """Create section with training curves"""
+    """Create section with separate training curves"""
     elements = []
     
-    # Create and save plots
-    loss_path = os.path.join(output_dir, 'loss_curves.png')
-    create_combined_loss_plot(metrics).savefig(loss_path, bbox_inches='tight')
+    # Generate and save plots
+    plot_paths = {
+        'loss': os.path.join(output_dir, 'loss_curves.png'),
+        'accuracy': os.path.join(output_dir, 'accuracy_curves.png'),
+        'f1': os.path.join(output_dir, 'f1_curves.png'),
+        'precision_recall': os.path.join(output_dir, 'precision_recall_curves.png')
+    }
     
-    metrics_path = os.path.join(output_dir, 'validation_metrics.png')
-    create_metrics_plot(metrics).savefig(metrics_path, bbox_inches='tight')
+    create_loss_plot(metrics).savefig(plot_paths['loss'], bbox_inches='tight')
+    create_accuracy_plot(metrics).savefig(plot_paths['accuracy'], bbox_inches='tight')
+    create_f1_plot(metrics).savefig(plot_paths['f1'], bbox_inches='tight')
+    create_precision_recall_plot(metrics).savefig(plot_paths['precision_recall'], bbox_inches='tight')
     
     # Add to report
     elements.append(Paragraph("<b>Training Curves</b>", styles['Heading2']))
     elements.append(Spacer(1, 12))
     
-    # Create two-column layout
+    # Create a table layout for the images (2 per row)
     img_table = Table([
-        [Image(loss_path, width=3.5*inch, height=2.5*inch),
-         Image(metrics_path, width=3.5*inch, height=2.5*inch)]
+        [Image(plot_paths['loss'], width=3.5*inch, height=2.5*inch),
+         Image(plot_paths['accuracy'], width=3.5*inch, height=2.5*inch)],
+        [Image(plot_paths['f1'], width=3.5*inch, height=2.5*inch),
+         Image(plot_paths['precision_recall'], width=3.5*inch, height=2.5*inch)]
     ], colWidths=[4*inch, 4*inch])
     
     elements.append(img_table)
     elements.append(Spacer(1, 24))
-    
-    # Add metric explanations
-    elements.append(Paragraph("<i>Training Metrics Legend:</i>", styles['Italic']))
-    elements.append(Paragraph(
-        "• <b>Loss:</b> CrossEntropyLoss with label smoothing", 
-        styles['BodyText']
-    ))
-    elements.append(Paragraph(
-        "• <b>Validation Metrics:</b> Calculated on full validation set after each epoch", 
-        styles['BodyText']
-    ))
-    
     return elements
+
+def create_loss_plot(metrics):
+    """Create loss curve plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(metrics.get('train_loss', []), label='Training Loss', linewidth=2, color='blue')
+    ax.plot(metrics.get('val_loss', []), label='Validation Loss', linewidth=2, color='red', linestyle='--')
+    ax.set_title('Training and Validation Loss')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Loss')
+    ax.legend()
+    ax.grid()
+    return fig
+
+def create_accuracy_plot(metrics):
+    """Create accuracy curve plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(metrics.get('train_accuracy', []), label='Training Accuracy', linewidth=2, color='blue')
+    ax.plot(metrics.get('val_accuracy', []), label='Validation Accuracy', linewidth=2, color='red', linestyle='--')
+    ax.set_title('Training and Validation Accuracy')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Accuracy')
+    ax.legend()
+    ax.grid()
+    return fig
+
+def create_f1_plot(metrics):
+    """Create F1-score curve plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(metrics.get('train_f1', []), label='Training F1', linewidth=2, color='blue')
+    ax.plot(metrics.get('val_f1', []), label='Validation F1', linewidth=2, color='red', linestyle='--')
+    ax.set_title('Training and Validation F1-Score')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('F1 Score')
+    ax.legend()
+    ax.grid()
+    return fig
+
+def create_precision_recall_plot(metrics):
+    """Create Precision and Recall plot"""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(metrics.get('val_precision', []), label='Validation Precision', linewidth=2, color='red', linestyle='--')
+    ax.plot(metrics.get('val_recall', []), label='Validation Recall', linewidth=2, color='orange', linestyle='--')
+    ax.set_title('Validation Precision & Recall')
+    ax.set_xlabel('Epoch')
+    ax.set_ylabel('Score')
+    ax.legend()
+    ax.grid()
+    return fig
+
 
 def create_predictions_section(model, test_loader, output_dir, styles):
     """Create section with sample predictions"""

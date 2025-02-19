@@ -71,12 +71,20 @@ class timm_backbones(pl.LightningModule):
         # Compute predictions and loss
         logits = self(x)
         loss = torch.nn.functional.cross_entropy(logits, y)
+        preds = torch.argmax(logits, dim=1)
+        accuracy = self.accuracy(y, preds)
+        precision = self.precision(y, preds)
+        recall = self.recall(y, preds)
+        f1 = self.f1(y, preds)
 
         # Add L1 regularization
         # l1_norm = sum(param.abs().sum() for param in self.parameters())
         # loss += self.l1_lambda * l1_norm
 
         self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=False, logger=True)
+        self.log('train_loss', loss, prog_bar=True, on_epoch=True, on_step=True)
+        self.log('train_acc', accuracy, prog_bar=True, on_epoch=True, on_step=True)
+        self.log('train_f1', f1, prog_bar=True, on_epoch=True, on_step=True)
 
         return loss
 
