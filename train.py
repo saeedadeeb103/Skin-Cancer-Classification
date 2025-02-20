@@ -116,7 +116,7 @@ def main(cfg: DictConfig) -> None:
         model=model,
         test_loader=test_loader,
         output_dir=hydra_cfg.runtime.output_dir,
-        cfg=cfg  # Pass your Hydra config object
+        cfg=cfg  
     )
 
     print(f"Generated comprehensive report at: {report_path}")

@@ -101,7 +101,7 @@ def create_metadata_section(model, cfg, styles, metrics):  # Add metrics paramet
     return elements
 
 def create_hyperparameters_table(cfg, styles):
-    """Create formatted hyperparameters table"""
+    """Create hyperparameters table"""
     elements = []
     header_style = ParagraphStyle(
         'TableHeader',
@@ -111,11 +111,22 @@ def create_hyperparameters_table(cfg, styles):
         alignment=1
     )
     
+    value_style = ParagraphStyle(
+        'ValueStyle',
+        parent=styles['BodyText'],
+        fontSize=10,
+        textColor=colors.black,
+        alignment=0,  # Left alignment
+        leading=12,    # Line spacing
+        spaceBefore=6,
+        spaceAfter=6
+    )
+    
     params = []
     for section in ['model', 'dataset', 'training']:
         if hasattr(cfg, section):
             params.extend([
-                (f"{key}", str(value))
+                (f"{key}", Paragraph(str(value), value_style))
                 for key, value in getattr(cfg, section).items()
             ])
     
@@ -153,15 +164,11 @@ def create_training_curves_section(metrics, output_dir, styles):
     f1_path = os.path.join(output_dir, 'f1_curves.png')
     precision_recall_path = os.path.join(output_dir, 'precision_recall_curves.png')
 
-
-
-    # Generate plots
     create_loss_plot(metrics).savefig(loss_path, bbox_inches='tight')
     create_accuracy_plot(metrics).savefig(accuracy_path, bbox_inches='tight')
     create_f1_plot(metrics).savefig(f1_path, bbox_inches='tight')
     create_precision_recall_plot(metrics).savefig(precision_recall_path, bbox_inches='tight')
 
-    # Add to report
     elements.append(Paragraph(" Training & Validation Metric Graphs ", styles['Heading2']))
     elements.append(Spacer(1, 12))
 
@@ -181,7 +188,7 @@ def create_training_curves_section(metrics, output_dir, styles):
 
 def create_loss_plot(metrics):
     plt.style.use('seaborn-v0_8')
-    fig, ax = plt.subplots(figsize=(14, 6))  # Wider figure
+    fig, ax = plt.subplots(figsize=(14, 6)) 
     
     # Get epoch count from training data
     epochs = len(metrics.get('train_loss', []))
@@ -209,7 +216,7 @@ def create_loss_plot(metrics):
                    linestyle='--',
                    label='Validation Loss')
     else:
-        # Fallback for small epoch counts
+        # for small epoch counts
         if 'train_loss' in metrics:
             ax.plot(metrics['train_loss'], 
                    color='#2B3A67', 
@@ -222,7 +229,6 @@ def create_loss_plot(metrics):
                    linestyle='--',
                    label='Validation Loss')
 
-    # Dynamic x-axis formatting
     ax.set_xticks(np.linspace(0, epochs-1, num=min(10, epochs), dtype=int))
     ax.tick_params(axis='x', labelrotation=45)
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x+1)))
@@ -243,7 +249,6 @@ def create_accuracy_plot(metrics):
     epochs = len(metrics.get('train_acc_epoch', []))
     x_vals = np.arange(epochs)
     
-    # Only plot markers at intervals
     marker_interval = max(1, epochs//10)
     
     if 'train_acc_epoch' in metrics:
@@ -408,10 +413,10 @@ def create_predictions_section(model, test_loader, output_dir, styles):
     elements.append(Paragraph("<b>Sample Predictions</b>", styles['Heading2']))
     elements.append(Spacer(1, 12))
     
-    # Generate prediction images
+    # generate prediction images
     sample_images = generate_organized_predictions(model, test_loader, output_dir)
     
-    # Create image grid (3 per row)
+    # create image grid (3 per row)
     rows = []
     current_row = []
     for img_path in sample_images:
@@ -422,7 +427,7 @@ def create_predictions_section(model, test_loader, output_dir, styles):
     if current_row:
         rows.append(current_row)
     
-    # Create prediction table
+    # create prediction table
     pred_table = Table(rows, colWidths=[2*inch]*3)
     pred_table.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
