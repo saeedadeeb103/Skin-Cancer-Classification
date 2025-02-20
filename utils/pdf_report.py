@@ -181,104 +181,224 @@ def create_training_curves_section(metrics, output_dir, styles):
 
 def create_loss_plot(metrics):
     plt.style.use('seaborn-v0_8')
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(14, 6))  # Wider figure
+    
+    # Get epoch count from training data
+    epochs = len(metrics.get('train_loss', []))
+    x_vals = np.arange(epochs)
+    
+    # Create smooth interpolation (cubic spline)
+    if epochs > 1:
+        from scipy.interpolate import make_interp_spline
+        xnew = np.linspace(x_vals.min(), x_vals.max(), 300)  # 300 smooth points
+        
+        if 'train_loss' in metrics and len(metrics['train_loss']) > 3:
+            train_spl = make_interp_spline(x_vals, metrics['train_loss'], k=3)
+            train_smooth = train_spl(xnew)
+            ax.plot(xnew, train_smooth, 
+                   color='#2B3A67', 
+                   linewidth=2.5,
+                   label='Training Loss')
+            
+        if 'val_loss_epoch' in metrics and len(metrics['val_loss_epoch']) > 3:
+            val_spl = make_interp_spline(x_vals, metrics['val_loss_epoch'], k=3)
+            val_smooth = val_spl(xnew)
+            ax.plot(xnew, val_smooth, 
+                   color='#7EBDC2', 
+                   linewidth=2.5,
+                   linestyle='--',
+                   label='Validation Loss')
+    else:
+        # Fallback for small epoch counts
+        if 'train_loss' in metrics:
+            ax.plot(metrics['train_loss'], 
+                   color='#2B3A67', 
+                   linewidth=2.5,
+                   label='Training Loss')
+        if 'val_loss_epoch' in metrics:
+            ax.plot(metrics['val_loss_epoch'], 
+                   color='#7EBDC2', 
+                   linewidth=2.5,
+                   linestyle='--',
+                   label='Validation Loss')
 
-    # Plot training loss (already epoch-level)
-    if 'train_loss' in metrics:
-        ax.plot(metrics['train_loss'], 
-                label='Training Loss', 
-                linewidth=2,
-                color='#2B3A67',
-                marker='o')
-
-    # Plot validation loss (epoch-level)
-    if 'val_loss_epoch' in metrics:
-        ax.plot(metrics['val_loss_epoch'], 
-                label='Validation Loss', 
-                linewidth=2,
-                color='#7EBDC2',
-                marker='s',
-                linestyle='--')
-
-    ax.set_title('Training and Validation Loss', fontsize=14, pad=15)
+    # Dynamic x-axis formatting
+    ax.set_xticks(np.linspace(0, epochs-1, num=min(10, epochs), dtype=int))
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x+1)))
+    
+    ax.set_title('Training and Validation Loss', fontsize=16, pad=20)
     ax.set_xlabel('Epoch', fontsize=12)
-    ax.set_xticks(range(len(metrics['train_loss'])))  # Match epoch count
     ax.set_ylabel('Loss', fontsize=12)
+    ax.grid(True, alpha=0.3)
     ax.legend()
+    
     plt.tight_layout()
     return fig
 
 def create_accuracy_plot(metrics):
     plt.style.use('seaborn-v0_8')
-    fig, ax = plt.subplots(figsize=(10, 6))
-
+    fig, ax = plt.subplots(figsize=(14, 6))
+    
+    epochs = len(metrics.get('train_acc_epoch', []))
+    x_vals = np.arange(epochs)
+    
+    # Only plot markers at intervals
+    marker_interval = max(1, epochs//10)
+    
     if 'train_acc_epoch' in metrics:
         ax.plot(metrics['train_acc_epoch'],
-                label='Training Accuracy',
-                color='#3A5A40',
-                marker='o')
-
+               color='#3A5A40',
+               linewidth=2.5,
+               marker='o' if epochs < 50 else None,
+               markevery=marker_interval,
+               label='Training Accuracy')
+    
     if 'val_acc_epoch' in metrics:
         ax.plot(metrics['val_acc_epoch'],
-                label='Validation Accuracy',
-                color='#FF6B35',
-                marker='s', 
-                linestyle='--')
+               color='#FF6B35',
+               linewidth=2.5,
+               linestyle='--',
+               marker='s' if epochs < 50 else None, 
+               markevery=marker_interval,
+               label='Validation Accuracy')
 
-    ax.set_title('Accuracy Curves', fontsize=14)
-    ax.set_xlabel('Epoch')
-    ax.set_xticks(range(len(metrics['train_acc_epoch'])))
-    ax.set_ylabel('Accuracy')
+    # Formatting
+    ax.set_xticks(np.linspace(0, epochs-1, num=min(10, epochs), dtype=int))
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x+1)))
+    
+    ax.set_title('Accuracy Curves', fontsize=16)
     ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
     ax.legend()
+    
     return fig
 
 def create_f1_plot(metrics):
     plt.style.use('seaborn-v0_8')
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(14, 6))
+    
+    epochs = max(
+        len(metrics.get('train_f1_epoch', [])),
+        len(metrics.get('val_f1_epoch', []))
+    )
+    x_vals = np.arange(epochs)
+    marker_interval = max(1, epochs//10)
 
-    if 'train_f1_epoch' in metrics:
-        ax.plot(metrics['train_f1_epoch'],
-                label='Train F1',
-                color='#3A5A40',
-                marker='o')
+    # Smoothing logic
+    if epochs > 3:
+        from scipy.interpolate import make_interp_spline
+        xnew = np.linspace(0, epochs-1, 300)
+        
+        # Train F1
+        if 'train_f1_epoch' in metrics and len(metrics['train_f1_epoch']) > 3:
+            spl = make_interp_spline(x_vals, metrics['train_f1_epoch'], k=3)
+            smooth = spl(xnew)
+            ax.plot(xnew, smooth,
+                   color='#3A5A40',
+                   linewidth=2.5,
+                   label='Train F1')
+        
+        # Validation F1
+        if 'val_f1_epoch' in metrics and len(metrics['val_f1_epoch']) > 3:
+            spl = make_interp_spline(x_vals, metrics['val_f1_epoch'], k=3)
+            smooth = spl(xnew)
+            ax.plot(xnew, smooth,
+                   color='#FF6B35',
+                   linewidth=2.5,
+                   linestyle='--',
+                   label='Validation F1')
+    else:
+        # Raw plots for small epoch counts
+        if 'train_f1_epoch' in metrics:
+            ax.plot(metrics['train_f1_epoch'],
+                   color='#3A5A40',
+                   linewidth=2.5,
+                   marker='o',
+                   label='Train F1')
+            
+        if 'val_f1_epoch' in metrics:
+            ax.plot(metrics['val_f1_epoch'],
+                   color='#FF6B35',
+                   linewidth=2.5,
+                   linestyle='--',
+                   marker='s',
+                   label='Validation F1')
 
-    if 'val_f1_epoch' in metrics:
-        ax.plot(metrics['val_f1_epoch'],
-                label='Validation F1',
-                color='#FF6B35',
-                marker='s',
-                linestyle='--')
-
-    ax.set_title('F1 Score Evolution', fontsize=14)
-    ax.set_xticks(range(len(metrics['train_f1_epoch'])))
-    ax.set_xlabel('Epoch')
+    # Formatting
+    ax.set_xticks(np.linspace(0, epochs-1, num=min(10, epochs), dtype=int))
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x+1)))
+    
+    ax.set_title('F1 Score Evolution', fontsize=16)
     ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
     ax.legend()
+    
     return fig
 
 def create_precision_recall_plot(metrics):
     plt.style.use('seaborn-v0_8')
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(14, 6))
+    
+    epochs = max(
+        len(metrics.get('val_precision_epoch', [])),
+        len(metrics.get('val_recall_epoch', []))
+    )
+    x_vals = np.arange(epochs)
+    marker_interval = max(1, epochs//10)
 
-    if 'val_precision_epoch' in metrics:
-        ax.plot(metrics['val_precision_epoch'],
-                label='Precision',
-                color='#3A5A40',
-                marker='o')
+    # Smoothing logic
+    if epochs > 3:
+        from scipy.interpolate import make_interp_spline
+        xnew = np.linspace(0, epochs-1, 300)
+        
+        # Precision
+        if 'val_precision_epoch' in metrics and len(metrics['val_precision_epoch']) > 3:
+            spl = make_interp_spline(x_vals, metrics['val_precision_epoch'], k=3)
+            smooth_precision = spl(xnew)
+            ax.plot(xnew, smooth_precision,
+                   color='#3A5A40',
+                   linewidth=2.5,
+                   label='Precision')
+        
+        # Recall
+        if 'val_recall_epoch' in metrics and len(metrics['val_recall_epoch']) > 3:
+            spl = make_interp_spline(x_vals, metrics['val_recall_epoch'], k=3)
+            smooth_recall = spl(xnew)
+            ax.plot(xnew, smooth_recall,
+                   color='#FF6B35',
+                   linewidth=2.5,
+                   linestyle='--',
+                   label='Recall')
+    else:
+        # Raw plots
+        if 'val_precision_epoch' in metrics:
+            ax.plot(metrics['val_precision_epoch'],
+                   color='#3A5A40',
+                   linewidth=2.5,
+                   marker='o',
+                   label='Precision')
+            
+        if 'val_recall_epoch' in metrics:
+            ax.plot(metrics['val_recall_epoch'],
+                   color='#FF6B35',
+                   linewidth=2.5,
+                   linestyle='--',
+                   marker='s',
+                   label='Recall')
 
-    if 'val_recall_epoch' in metrics:
-        ax.plot(metrics['val_recall_epoch'],
-                label='Recall',
-                color='#FF6B35',
-                marker='s',
-                linestyle='--')
-
-    ax.set_title('Validation Precision & Recall', fontsize=14)
-    ax.set_xticks(range(len(metrics['val_precision_epoch'])))
-    ax.set_xlabel('Epoch')
+    # Unified formatting
+    ax.set_xticks(np.linspace(0, epochs-1, num=min(10, epochs), dtype=int))
+    ax.tick_params(axis='x', labelrotation=45)
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: int(x+1)))
+    
+    ax.set_title('Validation Precision & Recall', fontsize=16)
     ax.set_ylim(0, 1.05)
+    ax.grid(True, alpha=0.3)
     ax.legend()
+    
     return fig
 
 
