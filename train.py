@@ -86,6 +86,10 @@ def main(cfg: DictConfig) -> None:
         patience=5,
         mode='min'
     )
+    last_checkpoint_callback = ModelCheckpoint(
+        dirpath=f"{hydra_cfg.runtime.output_dir}/checkpoints/",
+        filename="last_model"
+    )
 
     # Define logger
     logger = TensorBoardLogger(save_dir="logs", name="outputloggs")
@@ -98,7 +102,7 @@ def main(cfg: DictConfig) -> None:
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
         precision=16 if torch.cuda.is_available() else 32,  # Mixed precision training
         logger=logger,
-        callbacks=[checkpoint_callback, early_stop_callback],
+        callbacks=[checkpoint_callback, early_stop_callback, last_checkpoint_callback],
         accumulate_grad_batches=2  # Gradient accumulation for memory efficiency
     )
 
@@ -106,8 +110,27 @@ def main(cfg: DictConfig) -> None:
     trainer.fit(model, train_loader, val_loader)
 
     # Evaluate the model
-    train_val_metrics = trainer.logged_metrics.copy()  # Save a copy of the metrics
     trainer.test(model, test_loader)
+
+    # Evaluate the best model on the val data
+    best_model_path = checkpoint_callback.best_model_path
+    best_model = timm_backbones(
+        encoder=cfg.model.encoder,
+        num_classes=cfg.num_classes,
+        optimizer_cfg=cfg.model.optimizer,
+    )
+    best_model.load_state_dict(torch.load(best_model_path))
+    best_model.eval()
+
+    val_results = trainer.validate(best_model, val_loader)
+    val_accuracy = val_results[0]['val_acc']
+
+    # Evaluate the best model on test set
+    test_results = trainer.test(best_model, test_loader)
+    test_accuracy = test_results[0]['test_acc']
+
+    print(f"Best Model Validation Accuracy: {val_accuracy:.4f}")
+    print(f"Best Model Test Accuracy: {test_accuracy:.4f}")
     
     
     # generate pdf report
@@ -121,7 +144,7 @@ def main(cfg: DictConfig) -> None:
 
     print(f"Generated comprehensive report at: {report_path}")
     # Save the trained model
-    model_path = f"{hydra_cfg.runtime.output_dir}/lora_only_model.pth"
+    model_path = f"{hydra_cfg.runtime.output_dir}/model.pth"
     torch.save(model.state_dict(), model_path)
     print(f"Model saved to {model_path}")
     import os
