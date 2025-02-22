@@ -100,10 +100,10 @@ def main(cfg: DictConfig) -> None:
         max_epochs=cfg.max_epochs,
         min_epochs=cfg.min_epochs,
         accelerator='gpu' if torch.cuda.is_available() else 'cpu',
-        precision=16 if torch.cuda.is_available() else 32,  # Mixed precision training
+        precision=16 if torch.cuda.is_available() else 32,
         logger=logger,
         callbacks=[checkpoint_callback, early_stop_callback, last_checkpoint_callback],
-        accumulate_grad_batches=2  # Gradient accumulation for memory efficiency
+        accumulate_grad_batches=2  # gradient accumulation for memory efficiency
     )
 
     # Train the model
@@ -115,9 +115,13 @@ def main(cfg: DictConfig) -> None:
     # Evaluate the best model on the val data
     best_model_path = checkpoint_callback.best_model_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    import copy
-    best_model = copy.deepcopy(model)
-    best_model.load_state_dict(torch.load(best_model_path, map_location=device))
+    best_model = timm_backbones(
+        encoder=cfg.model.encoder,
+        num_classes=cfg.num_classes,
+        optimizer_cfg=cfg.model.optimizer,
+    )
+    checkpoint = torch.load(best_model_path)
+    best_model.load_state_dict(checkpoint['state_dict'], strict=False)
     best_model.to(device)
     best_model.eval()
 
