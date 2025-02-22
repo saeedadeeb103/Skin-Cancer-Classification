@@ -109,6 +109,19 @@ def main(cfg: DictConfig) -> None:
     # Train the model
     trainer.fit(model, train_loader, val_loader)
 
+    train_metrics = trainer.callback_metrics
+
+    # Extract training metrics
+    train_loss = train_metrics.get("train_loss_epoch")  # Training loss (averaged over epoch)
+    train_acc = train_metrics.get("train_acc_epoch")    # Training accuracy (averaged over epoch)
+    train_f1 = train_metrics.get("train_f1_epoch") # Training F1 (averaged over epoch)
+
+    # Print training metrics
+    print("\nTraining Metrics:")
+    print(f"Training Loss: {train_loss:.4f}")
+    print(f"Training Accuracy: {train_acc:.4f}")
+    print(f"Training F1: {train_f1:.4f}")
+
     # Evaluate the model on the val data and train data
     best_model_path = checkpoint_callback.best_model_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -121,14 +134,11 @@ def main(cfg: DictConfig) -> None:
     best_model.load_state_dict(checkpoint['state_dict'], strict=False)
     best_model.to(device)
     best_model.eval()
-    train_result = trainer.validate(best_model, train_loader)
     val_results = trainer.validate(best_model, val_loader)
 
     # Evaluate the model on the test data
     trainer.test(model, test_loader)
 
-    
-    
     # generate pdf report
     report_path = generate_report(
         log_dir=logger.log_dir,
