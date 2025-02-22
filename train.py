@@ -112,7 +112,7 @@ def main(cfg: DictConfig) -> None:
     train_metrics = trainer.callback_metrics
 
     # Extract training metrics
-    train_loss = train_metrics.get("train_loss_epoch")  # Training loss (averaged over epoch)
+    train_loss = train_metrics.get("train_loss")  # Training loss (averaged over epoch)
     train_acc = train_metrics.get("train_acc_epoch")    # Training accuracy (averaged over epoch)
     train_f1 = train_metrics.get("train_f1_epoch") # Training F1 (averaged over epoch)
 
