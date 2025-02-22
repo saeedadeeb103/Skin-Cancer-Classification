@@ -109,6 +109,17 @@ def main(cfg: DictConfig) -> None:
     # Train the model
     trainer.fit(model, train_loader, val_loader)
 
+    # generate pdf report
+    report_path = generate_report(
+        log_dir=logger.log_dir,
+        model=model,
+        test_loader=test_loader,
+        output_dir=hydra_cfg.runtime.output_dir,
+        cfg=cfg  
+    )
+
+    print(f"Generated comprehensive report at: {report_path}")
+
     train_metrics = trainer.callback_metrics
 
     # Extract training metrics
@@ -138,17 +149,7 @@ def main(cfg: DictConfig) -> None:
 
     # Evaluate the model on the test data
     trainer.test(model, test_loader)
-
-    # generate pdf report
-    report_path = generate_report(
-        log_dir=logger.log_dir,
-        model=model,
-        test_loader=test_loader,
-        output_dir=hydra_cfg.runtime.output_dir,
-        cfg=cfg  
-    )
-
-    print(f"Generated comprehensive report at: {report_path}")
+    
     # save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/model.pth"
     torch.save(best_model.state_dict(), model_path)
