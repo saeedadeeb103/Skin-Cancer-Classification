@@ -126,14 +126,9 @@ def main(cfg: DictConfig) -> None:
     best_model.eval()
 
     val_results = trainer.validate(best_model, val_loader)
-    val_accuracy = val_results[0]['val_acc']
 
     # Evaluate the best model on test set
     test_results = trainer.test(best_model, test_loader)
-    test_accuracy = test_results[0]['test_acc']
-
-    print(f"Best Model Validation Accuracy: {val_accuracy:.4f}")
-    print(f"Best Model Test Accuracy: {test_accuracy:.4f}")
     
     
     # generate pdf report
