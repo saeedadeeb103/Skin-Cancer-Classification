@@ -522,10 +522,14 @@ def generate_organized_predictions(model, test_loader, output_dir, num_samples=9
                 img = denormalize(x[idx]).cpu().numpy().transpose(1, 2, 0)
                 img = np.clip(img, 0, 1)
                 
+                # Map labels to "Melanoma" and "BCC"
+                true_label = "Melanoma" if y[idx].item() == 0 else "BCC"
+                pred_label = "Melanoma" if preds[idx].item() == 0 else "BCC"
+                
                 fig, ax = plt.subplots(figsize=(3, 3))
                 ax.imshow(img)
                 ax.set_title(
-                    f'True: {y[idx].item()}\nPred: {preds[idx].item()}',
+                    f'True: {true_label}\nPred: {pred_label}',
                     fontsize=9,
                     color='#3A5A40' if y[idx] == preds[idx] else '#FF6B35'
                 )
