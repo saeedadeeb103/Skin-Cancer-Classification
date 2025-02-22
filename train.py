@@ -143,9 +143,9 @@ def main(cfg: DictConfig) -> None:
     )
 
     print(f"Generated comprehensive report at: {report_path}")
-    # Save the trained model
+    # save the trained model
     model_path = f"{hydra_cfg.runtime.output_dir}/model.pth"
-    torch.save(model.state_dict(), model_path)
+    torch.save(best_model.state_dict(), model_path)
     print(f"Model saved to {model_path}")
     import os
     print(f"Model size: {os.path.getsize(model_path) / 1024 / 1024:.2f} MB")
