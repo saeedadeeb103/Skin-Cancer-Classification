@@ -115,11 +115,8 @@ def main(cfg: DictConfig) -> None:
     # Evaluate the best model on the val data
     best_model_path = checkpoint_callback.best_model_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    best_model = timm_backbones(
-        encoder=cfg.model.encoder,
-        num_classes=cfg.num_classes,
-        optimizer_cfg=cfg.model.optimizer,
-    )
+    import copy
+    best_model = copy.deepcopy(model)
     best_model.load_state_dict(torch.load(best_model_path, map_location=device))
     best_model.to(device)
     best_model.eval()
