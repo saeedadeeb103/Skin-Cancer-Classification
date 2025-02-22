@@ -109,10 +109,7 @@ def main(cfg: DictConfig) -> None:
     # Train the model
     trainer.fit(model, train_loader, val_loader)
 
-    # Evaluate the model
-    trainer.test(model, test_loader)
-
-    # Evaluate the best model on the val data
+    # Evaluate the model on the val data and train data
     best_model_path = checkpoint_callback.best_model_path
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     best_model = timm_backbones(
@@ -124,11 +121,12 @@ def main(cfg: DictConfig) -> None:
     best_model.load_state_dict(checkpoint['state_dict'], strict=False)
     best_model.to(device)
     best_model.eval()
-
+    train_result = trainer.validate(best_model, train_loader)
     val_results = trainer.validate(best_model, val_loader)
 
-    # Evaluate the best model on test set
-    test_results = trainer.test(best_model, test_loader)
+    # Evaluate the model on the test data
+    trainer.test(model, test_loader)
+
     
     
     # generate pdf report
